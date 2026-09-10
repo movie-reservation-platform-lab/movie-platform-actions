@@ -1,3 +1,8 @@
+/**
+ * Verifies that the container image was built from the expected main-branch
+ * commit by the approved workflow on a GitHub-hosted runner. Keeps the verified
+ * provenance bundle as evidence and outputs the image reference and artifact name.
+ */
 import { copyFileSync, constants, lstatSync, mkdirSync, realpathSync, chmodSync, unlinkSync, appendFileSync, } from "node:fs";
 import { join, relative, isAbsolute } from "node:path";
 import { execFileSync } from "node:child_process";

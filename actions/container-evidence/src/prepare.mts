@@ -1,8 +1,12 @@
+/**
+ * Checks that this run is allowed to publish and uses the latest commit on the
+ * repository's main branch, then writes the image reference, tag, and artifact
+ * name to GitHub Actions outputs for later steps.
+ */
 import { appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { publicationContext } from "./profile.mjs";
 
-// Narrow shell adapter: pure policy is testable without git, GHCR or credentials.
 try {
   const profile = publicationContext(process.env);
   let remote;

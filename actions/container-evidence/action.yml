@@ -27,7 +27,8 @@ runs:
         subject-digest: ${{ inputs.digest }}
         github-token: ${{ inputs.github-token }}
         push-to-registry: false
-    - id: verified
+    - name: Verify container provenance
+      id: verify-provenance
       shell: bash
       env:
         COMPONENT: ${{ inputs.component }}
@@ -40,7 +41,7 @@ runs:
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: image
-        image-ref: ${{ steps.verified.outputs.image }}
+        image-ref: ${{ steps.verify-provenance.outputs.image }}
         scanners: vuln
         vuln-type: os,library
         format: cyclonedx
@@ -56,7 +57,7 @@ runs:
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: image
-        image-ref: ${{ steps.verified.outputs.image }}
+        image-ref: ${{ steps.verify-provenance.outputs.image }}
         scanners: vuln
         vuln-type: os,library
         format: json
@@ -72,12 +73,12 @@ runs:
       shell: bash
       env:
         REPORT_PATH: security-evidence/${{ inputs.component }}-vulnerabilities.json
-        EXPECTED_IMAGE: ${{ steps.verified.outputs.image }}
+        EXPECTED_IMAGE: ${{ steps.verify-provenance.outputs.image }}
         SUBJECT_KIND: immutable-ghcr
         EVIDENCE_ARTIFACT_NAME: ${{ steps.context.outputs.artifact }}
         ACTION_PATH: ${{ github.action_path }}
-      run: node "$ACTION_PATH/lib/evaluate.mjs"
-    - name: Emit hashed candidate contract
+      run: node "$ACTION_PATH/lib/evaluate-vulnerabilities.mjs"
+    - name: Write candidate evidence document
       shell: bash
       env:
         COMPONENT: ${{ inputs.component }}
@@ -86,7 +87,7 @@ runs:
         ATTESTATION_ID: ${{ steps.provenance.outputs.attestation-id }}
         ATTESTATION_URL: ${{ steps.provenance.outputs.attestation-url }}
         ACTION_PATH: ${{ github.action_path }}
-      run: node "$ACTION_PATH/lib/emit.mjs"
+      run: node "$ACTION_PATH/lib/write-candidate-evidence.mjs"
     - name: Attest the exact four-file handoff
       uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
       with:
@@ -108,7 +109,7 @@ runs:
         if-no-files-found: error
         retention-days: 14
     - name: Upload rejected diagnostics only
-      if: ${{ failure() && !cancelled() && steps.verified.outcome == 'success' }}
+      if: ${{ failure() && !cancelled() && steps.verify-provenance.outcome == 'success' }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.component }}-rejected-security-evidence-${{ github.run_id }}-attempt-${{ github.run_attempt }}

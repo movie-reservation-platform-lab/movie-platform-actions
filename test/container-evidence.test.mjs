@@ -105,7 +105,7 @@ function fixture(t, component) {
 for (const component of components) {
   test(`${component}: emits exact run, digest, job and hashed four-file profile independent of cwd`, (t) => {
     const f = fixture(t, component);
-    const result = f.run("emit.mjs");
+    const result = f.run("write-candidate-evidence.mjs");
     assert.equal(result.status, 0, result.stderr);
     const doc = JSON.parse(
       readFileSync(join(f.directory, "security-evidence", f.profile.document)),
@@ -160,7 +160,7 @@ for (const component of components) {
           .digest("hex")}`,
       );
     }
-    assert.notEqual(f.run("emit.mjs").status, 0, "must not overwrite evidence");
+    assert.notEqual(f.run("write-candidate-evidence.mjs").status, 0, "must not overwrite evidence");
   });
 }
 for (const [key, value] of Object.entries({
@@ -225,7 +225,7 @@ for (const scenario of [
         path,
       );
     }
-    assert.notEqual(f.run("emit.mjs").status, 0);
+    assert.notEqual(f.run("write-candidate-evidence.mjs").status, 0);
     assert.equal(
       existsSync(join(f.directory, "security-evidence", f.profile.document)),
       false,
@@ -279,11 +279,11 @@ test("vulnerability evaluator binds report and exposes HIGH without silently pas
     },
   ];
   f.put(f.profile.vulnerabilities, f.report);
-  assert.equal(f.run("evaluate.mjs").status, 0);
+  assert.equal(f.run("evaluate-vulnerabilities.mjs").status, 0);
   assert.match(readFileSync(f.env.GITHUB_OUTPUT, "utf8"), /high-count=1/);
   f.report.Results[0].Vulnerabilities[0].Severity = "CRITICAL";
   f.put(f.profile.vulnerabilities, f.report);
-  assert.notEqual(f.run("evaluate.mjs").status, 0);
+  assert.notEqual(f.run("evaluate-vulnerabilities.mjs").status, 0);
 });
 test("provenance verification uses constrained signer and removes rejected bundle", (t) => {
   const f = fixture(t);
@@ -334,5 +334,5 @@ test("composite dependencies are immutable and canonical upload follows package 
       action.indexOf("Upload admissible"),
   );
   assert.match(action, /push-to-registry: false/);
-  assert.match(action, /steps.verified.outcome == 'success'/);
+  assert.match(action, /steps\.verify-provenance\.outcome == 'success'/);
 });

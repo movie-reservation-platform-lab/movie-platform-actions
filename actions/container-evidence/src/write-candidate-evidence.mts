@@ -1,10 +1,14 @@
+/**
+ * Writes the candidate evidence JSON with the image and build identity,
+ * vulnerability counts, and hashes of the provenance bundle, SBOM, and scan report.
+ * Rejects CRITICAL findings and refuses to overwrite an existing evidence document.
+ */
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, writeFileSync, lstatSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { publicationContext } from "./profile.mjs";
 
-// Derived from the reservation-service pilot; dependency-free in the privileged job.
 const profile = publicationContext(process.env);
 const sourceRepository = profile.repository;
 const candidateRepository = `ghcr.io/${sourceRepository}`;
@@ -133,10 +137,7 @@ try {
   process.exitCode = 1;
 }
 
-/**
- * @param {string} name
- * @returns {string}
- */
+/** Reads a required runner setting, rejecting missing or empty values. */
 function requireEnvironmentVariable(name: string): string {
   const value = process.env[name];
 
@@ -147,11 +148,7 @@ function requireEnvironmentVariable(name: string): string {
   return value;
 }
 
-/**
- * @param {string} name
- * @param {string} expected
- * @returns {void}
- */
+/** Rejects a runner setting that differs from the expected publication identity. */
 function requireExactEnvironmentVariable(name: string, expected: string): void {
   const value = requireEnvironmentVariable(name);
 
@@ -160,23 +157,14 @@ function requireExactEnvironmentVariable(name: string, expected: string): void {
   }
 }
 
-/**
- * @param {string} name
- * @param {string} value
- * @param {RegExp} pattern
- * @returns {void}
- */
+/** Checks an input's format, naming the invalid setting without echoing its value. */
 function validatePattern(name: string, value: string, pattern: RegExp): void {
   if (!pattern.test(value)) {
     throw new Error(`${name} has an unsupported value.`);
   }
 }
 
-/**
- * @param {string} value
- * @param {string} name
- * @returns {number}
- */
+/** Parses a positive decimal integer without leading zeros or loss of numeric precision. */
 function parsePositiveInteger(value: string, name: string): number {
   if (!/^[1-9][0-9]*$/.test(value)) {
     throw new Error(`${name} must be a positive integer.`);
@@ -192,9 +180,8 @@ function parsePositiveInteger(value: string, name: string): number {
 }
 
 /**
- * @param {string} workspace
- * @param {string} expectedImage
- * @returns {VulnerabilityCounts}
+ * Checks that the Trivy report describes the expected image and counts findings
+ * by severity. Missing or null result lists count as no findings; invalid entries fail.
  */
 function readVulnerabilityCounts(
   workspace: string,
@@ -287,11 +274,7 @@ function readVulnerabilityCounts(
   return counts;
 }
 
-/**
- * @param {string} workspace
- * @param {string} relativePath
- * @returns {string}
- */
+/** Hashes a checked evidence file, returning its digest with the sha256: prefix. */
 function hashWorkspaceFile(workspace: string, relativePath: string): string {
   return `sha256:${createHash("sha256")
     .update(readFileSync(resolveWorkspaceFile(workspace, relativePath)))
@@ -299,9 +282,8 @@ function hashWorkspaceFile(workspace: string, relativePath: string): string {
 }
 
 /**
- * @param {string} workspace
- * @param {string} relativePath
- * @returns {string}
+ * Resolves an evidence file within the workspace, rejecting files over 64 MiB,
+ * non-regular files, and paths whose final component is a symlink.
  */
 function resolveWorkspaceFile(workspace: string, relativePath: string): string {
   const requested = resolve(workspace, relativePath);
@@ -329,10 +311,7 @@ function resolveWorkspaceFile(workspace: string, relativePath: string): string {
   return path;
 }
 
-/**
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
+/** Narrows a JSON value to an object with readable fields, excluding null and arrays. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

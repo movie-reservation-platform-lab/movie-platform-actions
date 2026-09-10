@@ -9,8 +9,27 @@ const jobs = {
 
 type Component = keyof typeof jobs;
 
+export type ContainerProfile = Readonly<{
+  component: Component;
+  repository: string;
+  jobId: (typeof jobs)[Component][0];
+  jobName: (typeof jobs)[Component][1];
+  image: string;
+  workflow: ".github/workflows/ci.yml";
+  document: "component-candidate-evidence-v1alpha2.json";
+  provenance: string;
+  sbom: string;
+  vulnerabilities: string;
+  tagPrefix: "ecs-demo-sha" | "sha";
+}>;
+
+export type PublicationContext = ContainerProfile & Readonly<{
+  artifact: string;
+  tag: string;
+}>;
+
 /** Resolve reviewed identity, never arbitrary paths, repositories or signer inputs. */
-export function profileFor(component: string | undefined) {
+export function profileFor(component: string | undefined): ContainerProfile {
   if (!isComponent(component))
     throw new Error("Unsupported container component");
   const [jobId, jobName] = jobs[component];
@@ -31,7 +50,7 @@ export function profileFor(component: string | undefined) {
 }
 
 /** Pure publication authorization; shared code never grants itself caller permissions. */
-export function publicationContext(env: NodeJS.ProcessEnv) {
+export function publicationContext(env: NodeJS.ProcessEnv): PublicationContext {
   const profile = profileFor(env.COMPONENT);
   const exact = {
     GITHUB_REPOSITORY: profile.repository,

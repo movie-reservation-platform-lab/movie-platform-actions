@@ -1,3 +1,8 @@
+/**
+ * Checks that the vulnerability report (trivy) belongs to the expected container image,
+ * then writes finding counts and a summary to GitHub Actions. Fails the step for
+ * invalid reports or CRITICAL findings; HIGH findings are reported but do not fail it.
+ */
 import { appendFileSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 const immutableGhcrImagePattern = /^ghcr\.io\/[a-z0-9_.-]+\/[a-z0-9_.-]+@sha256:[0-9a-f]{64}$/;
@@ -57,21 +62,14 @@ catch (error) {
     reportWorkflowError(`Unable to evaluate container vulnerability evidence: ${message}`);
     process.exitCode = 1;
 }
-/**
- * @param {string} value
- * @returns {'immutable-ghcr' | 'local'}
- */
+/** Accepts only the supported image kinds: an immutable GHCR image or a local image. */
 function parseSubjectKind(value) {
     if (value === "immutable-ghcr" || value === "local") {
         return value;
     }
     throw new Error(`Unsupported image subject kind: ${value}`);
 }
-/**
- * @param {string} expectedImage
- * @param {'immutable-ghcr' | 'local'} subjectKind
- * @returns {void}
- */
+/** Requires a GHCR digest reference or a local image tag, depending on the image kind. */
 function validateExpectedImage(expectedImage, subjectKind) {
     if (subjectKind === "immutable-ghcr" &&
         !immutableGhcrImagePattern.test(expectedImage)) {
@@ -81,10 +79,7 @@ function validateExpectedImage(expectedImage, subjectKind) {
         throw new Error(`Expected image is not a supported local container reference: ${expectedImage}`);
     }
 }
-/**
- * @param {string} name
- * @returns {string}
- */
+/** Reads a required runner setting, rejecting missing or empty values. */
 function requireEnvironmentVariable(name) {
     const value = process.env[name];
     if (value === undefined || value.length === 0) {
@@ -92,11 +87,7 @@ function requireEnvironmentVariable(name) {
     }
     return value;
 }
-/**
- * @param {string} pathInput
- * @param {string} workspaceInput
- * @returns {string}
- */
+/** Resolves symlinks before checking that the report path stays within the workspace. */
 function resolveWorkspaceFile(pathInput, workspaceInput) {
     const workspace = realpathSync(workspaceInput);
     const file = realpathSync(resolve(workspace, pathInput));
@@ -110,10 +101,7 @@ function resolveWorkspaceFile(pathInput, workspaceInput) {
     }
     return file;
 }
-/**
- * @param {string} path
- * @returns {TrivyReport}
- */
+/** Reads a Trivy v2 container report; its vulnerability results are validated separately. */
 function readTrivyReport(path) {
     const parsed = JSON.parse(readFileSync(path, "utf8"));
     if (!isRecord(parsed)) {
@@ -130,10 +118,7 @@ function readTrivyReport(path) {
     }
     return { ArtifactName: parsed.ArtifactName, Results: parsed.Results };
 }
-/**
- * @param {unknown} resultsValue
- * @returns {Vulnerability[]}
- */
+/** Combines findings across scan results; missing or null results count as no findings. */
 function collectVulnerabilities(resultsValue) {
     if (resultsValue === undefined || resultsValue === null) {
         return [];
@@ -143,11 +128,7 @@ function collectVulnerabilities(resultsValue) {
     }
     return resultsValue.flatMap((result, resultIndex) => collectResultVulnerabilities(result, resultIndex));
 }
-/**
- * @param {unknown} resultValue
- * @param {number} resultIndex
- * @returns {Vulnerability[]}
- */
+/** Validates one scan result and reads its findings, allowing a missing or null list. */
 function collectResultVulnerabilities(resultValue, resultIndex) {
     if (!isRecord(resultValue)) {
         throw new Error(`Trivy result at index ${resultIndex} must be an object.`);
@@ -162,10 +143,8 @@ function collectResultVulnerabilities(resultValue, resultIndex) {
     return vulnerabilities.map((vulnerability, vulnerabilityIndex) => parseVulnerability(vulnerability, resultIndex, vulnerabilityIndex));
 }
 /**
- * @param {unknown} vulnerabilityValue
- * @param {number} resultIndex
- * @param {number} vulnerabilityIndex
- * @returns {Vulnerability}
+ * Validates one finding and normalizes its severity to uppercase.
+ * A missing or blank fixed version means the report lists no fix.
  */
 function parseVulnerability(vulnerabilityValue, resultIndex, vulnerabilityIndex) {
     if (!isRecord(vulnerabilityValue)) {
@@ -194,13 +173,7 @@ function parseVulnerability(vulnerabilityValue, resultIndex, vulnerabilityIndex)
         vulnerabilityId,
     };
 }
-/**
- * @param {Record<string, unknown>} vulnerability
- * @param {string} field
- * @param {number} resultIndex
- * @param {number} vulnerabilityIndex
- * @returns {string}
- */
+/** Reads a nonempty text field, identifying the finding's position if it is invalid. */
 function requireReportString(vulnerability, field, resultIndex, vulnerabilityIndex) {
     const value = vulnerability[field];
     if (typeof value !== "string" || value.length === 0) {
@@ -208,10 +181,7 @@ function requireReportString(vulnerability, field, resultIndex, vulnerabilityInd
     }
     return value;
 }
-/**
- * @param {SummaryValues} values
- * @returns {string}
- */
+/** Builds the job summary with finding counts, CRITICAL details, and the HIGH approval reminder. */
 function renderSummary({ criticalCount, criticalFindings, evidenceArtifactName, expectedImage, highCount, policyResult, subjectKind, }) {
     const highDecision = highCount === 0
         ? "No HIGH findings require an admission decision for this candidate."
@@ -234,20 +204,14 @@ function renderSummary({ criticalCount, criticalFindings, evidenceArtifactName, 
     summary.push(highDecision, "", "This CRITICAL-only control is provisional pending the durable [platform policy in `.github#8`](https://github.com/movie-reservation-platform-lab/.github/issues/8).", "");
     return summary.join("\n");
 }
-/**
- * @param {Vulnerability} vulnerability
- * @returns {string}
- */
+/** Formats one CRITICAL finding as a table row, explicitly noting when no fix is reported. */
 function renderCriticalFinding(vulnerability) {
     const fixedVersion = vulnerability.fixedVersion === undefined
         ? "<em>no fix reported</em>"
         : `<code>${escapeSummaryValue(vulnerability.fixedVersion)}</code>`;
     return `| <code>${escapeSummaryValue(vulnerability.vulnerabilityId)}</code> | <code>${escapeSummaryValue(vulnerability.packageName)}</code> | <code>${escapeSummaryValue(vulnerability.installedVersion)}</code> | ${fixedVersion} |`;
 }
-/**
- * @param {string} value
- * @returns {string}
- */
+/** Escapes report text so it cannot introduce HTML or break the summary's table cells. */
 function escapeSummaryValue(value) {
     return value
         .replaceAll("&", "&amp;")
@@ -257,10 +221,7 @@ function escapeSummaryValue(value) {
         .replaceAll("\r", "&#13;")
         .replaceAll("\n", "&#10;");
 }
-/**
- * @param {string} message
- * @returns {void}
- */
+/** Emits a GitHub Actions error annotation, escaping workflow-command control characters. */
 function reportWorkflowError(message) {
     const escapedMessage = message
         .replaceAll("%", "%25")
@@ -268,10 +229,7 @@ function reportWorkflowError(message) {
         .replaceAll("\n", "%0A");
     console.error(`::error::${escapedMessage}`);
 }
-/**
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
+/** Narrows a JSON value to an object with readable fields, excluding null and arrays. */
 function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
