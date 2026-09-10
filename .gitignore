@@ -1,0 +1,12 @@
+node_modules/
+
+# Local and generated AI-tool directories. Canonical project guidance lives in .ai/.
+/.agents/
+/.claude/
+/.codex/
+/.continue/
+/.cursor/
+/.gemini/
+/.kiro/
+/.roo/
+/.windsurf/

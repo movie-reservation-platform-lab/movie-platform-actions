@@ -1,0 +1,3 @@
+type: skill
+skillName: testing
+description: "Use when writing or reviewing Node tests for shared actions, generated JavaScript, evidence schemas, workflow metadata, and security failure paths."

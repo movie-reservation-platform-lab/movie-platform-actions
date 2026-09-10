@@ -1,0 +1,3 @@
+type: skill
+skillName: typescript
+description: "Use when designing or refactoring TypeScript types, runtime validation, ESM modules, and generated JavaScript for the Node 24 action runtime."
