@@ -3,9 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p local-tools/container-security/tsconfig.json",
     "check:generated": "npm run build && node ci_automations/check-generated.mjs",
-    "test": "node --test test/*.test.mjs",
+    "test": "npm run test:actions && npm run test:local-tools",
+    "test:actions": "node --test test/*.test.mjs",
+    "test:local-tools": "node --test local-tools/container-security/test/*.test.mjs",
     "ci": "npm run check:generated && npm test"
   },
   "devDependencies": {
