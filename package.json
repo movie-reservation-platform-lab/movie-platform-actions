@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check:generated": "npm run build && git diff --exit-code -- actions/container-evidence/lib",
+    "check:generated": "npm run build && node ci_automations/check-generated.mjs",
     "test": "node --test test/*.test.mjs",
     "ci": "npm run check:generated && npm test"
   },

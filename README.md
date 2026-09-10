@@ -26,8 +26,18 @@ npm run ci
 ```
 
 `npm run ci` compiles the TypeScript, fails if generated JavaScript differs
-from the checked-in files, and runs the offline contract and security tests.
+from the checked-in files (including newly generated, untracked files), and runs
+the offline contract and security tests. After editing TypeScript, run
+`npm run build` and commit both the source and generated `lib/` changes.
 Node 24 is the supported development and action runtime.
+
+Repository CI checks live in [`ci_automations/`](ci_automations/README.md):
+the quality checks for these CI building blocks themselves.
+
+The GitHub ruleset [Require shared action CI on main](https://github.com/movie-reservation-platform-lab/movie-platform-actions/rules/22754075)
+requires the `offline-contract-tests` check from GitHub Actions to pass and the
+branch to be up to date before merging into `main`. This ruleset is configured
+in GitHub repository settings.
 
 ## AI guidance
 
