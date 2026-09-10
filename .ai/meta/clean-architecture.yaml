@@ -1,0 +1,3 @@
+type: skill
+skillName: clean-architecture
+description: "Use when designing or reviewing dependency direction and policy/adapter boundaries in repository-authored GitHub Action code; do not impose service-layer structure on simple composite metadata."

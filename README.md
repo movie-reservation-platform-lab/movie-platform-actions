@@ -28,3 +28,11 @@ npm run ci
 `npm run ci` compiles the TypeScript, fails if generated JavaScript differs
 from the checked-in files, and runs the offline contract and security tests.
 Node 24 is the supported development and action runtime.
+
+## AI guidance
+
+Canonical repository guidance, reusable skills, and read-only review agents
+live under `.ai/`. After changing them, run `bash .ai/sync.sh` and review the
+generated assistant-specific files together with the canonical source. The
+assistant-specific directories are local and gitignored; `.ai/` and the
+generated root `AGENTS.md` are committed, matching the sibling repositories.
