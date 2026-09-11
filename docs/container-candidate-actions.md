@@ -40,6 +40,11 @@ Runner-provided gh is used in producer verification as in the pilot; the
 environment verifier independently uses its pinned CLI. This does not make
 producer runner tools immutable.
 
+For a producer-owned local build followed by the shared diagnostic scan, see
+[the local container vulnerability runbook](local-container-vulnerability-scanning.md).
+Its helper reuses this action's CRITICAL evaluator, but produces no candidate
+evidence or admission authority.
+
 Versioning: review changes here, run tests, merge, then open consumer pin PRs. Never consume main/tags or silently rewrite an existing schema contract. In emergencies revert affected consumer pins; do not bypass validation. Existing artifacts expire after 14 days: new runs are required, not reconstructed evidence.
 
 ## Migration dependencies

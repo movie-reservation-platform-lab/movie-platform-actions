@@ -2,9 +2,10 @@
  * ## Generated JavaScript check
  
  `check-generated.mjs` checks that the compiled JavaScript under
- `actions/container-evidence/lib/` matches the Git index and that no new,
- untracked generated files were left out. It fails on modified, deleted, or
- untracked files in that directory.
+ `actions/container-evidence/lib/` and `local-tools/container-security/lib/`
+ matches the Git index and that no new, untracked generated files were left out.
+ It fails on modified, deleted, or
+ untracked files in either directory.
  
  Run it from the repository root through the package command, which compiles
  TypeScript before checking the output:
@@ -22,15 +23,18 @@
 
 import { execFileSync } from "node:child_process";
 
-const directory = "actions/container-evidence/lib";
+const directories = [
+  "actions/container-evidence/lib",
+  "local-tools/container-security/lib",
+];
 
 try {
-  execFileSync("git", ["diff", "--exit-code", "--", directory], {
+  execFileSync("git", ["diff", "--exit-code", "--", ...directories], {
     stdio: "inherit",
   });
   const untracked = execFileSync(
     "git",
-    ["ls-files", "--others", "--exclude-standard", "--", directory],
+    ["ls-files", "--others", "--exclude-standard", "--", ...directories],
     { encoding: "utf8" },
   );
   if (untracked.length > 0) {

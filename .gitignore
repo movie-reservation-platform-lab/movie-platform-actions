@@ -1,4 +1,5 @@
 node_modules/
+.local-container-security/
 
 # Local and generated AI-tool directories. Canonical project guidance lives in .ai/.
 /.agents/

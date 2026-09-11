@@ -1,5 +1,6 @@
 # Shared supply-chain implementation requires organization maintainer review.
 /actions/ @patex1987
+/local-tools/ @patex1987
 /contracts/ @patex1987
 /test/ @patex1987
 /.github/workflows/ @patex1987

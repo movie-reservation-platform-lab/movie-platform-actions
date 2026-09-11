@@ -13,6 +13,9 @@ it executes with the caller job's permissions.
 - `actions/container-evidence/lib/`: checked-in JavaScript executed by callers.
 - `contracts/`: versioned, closed evidence schemas.
 - `test/`: offline contract and security regression tests.
+- `local-tools/container-security/`: local scan/evaluate helper; its source,
+  generated JavaScript, and dedicated offline tests live in `src/`, `lib/`, and
+  `test/`. Producer builds remain documented and separate.
 - `docs/`: caller obligations, migration plans, versioning, and rollback.
 - `.github/workflows/`: credential-free repository verification.
 - `.ai/`: canonical AI guidance. Generated assistant files and `AGENTS.md`
@@ -23,6 +26,7 @@ it executes with the caller job's permissions.
 - Install: `npm ci --ignore-scripts`
 - Compile TypeScript: `npm run build`
 - Test: `npm test`
+- Local-tool tests only: `npm run test:local-tools`
 - Full local CI equivalent: `npm run ci`
 - Dependency audit: `npm audit --audit-level=high`
 - Diff hygiene: `git diff --check`
