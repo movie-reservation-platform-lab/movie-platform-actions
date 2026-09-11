@@ -19,6 +19,10 @@ To build and check an image before publication, use the
 The scan/evaluate helper and its dedicated tests live in
 [`local-tools/container-security/`](local-tools/container-security/).
 
+The [governed exemption contract](docs/vulnerability-exemption-contract.md) is
+foundation work for a later opt-in rollout. No exemption is active and the
+current action/local CLI still reject CRITICAL findings.
+
 ## Development
 
 The reviewed TypeScript source is in

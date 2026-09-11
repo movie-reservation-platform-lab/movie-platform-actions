@@ -2,6 +2,9 @@
 /actions/ @patex1987
 /local-tools/ @patex1987
 /contracts/ @patex1987
+/security-exemptions/ @patex1987
+/.github/PULL_REQUEST_TEMPLATE/ @patex1987
+/docs/vulnerability-exemption-contract.md @patex1987
 /test/ @patex1987
 /.github/workflows/ @patex1987
 /package.json @patex1987
