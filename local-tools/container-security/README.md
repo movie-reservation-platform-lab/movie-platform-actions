@@ -22,7 +22,13 @@ Local diagnostics are not PR authority or admissible candidate evidence.
 ## Development
 
 Source is in `src/`, checked-in generated runtime code in `lib/`, and this tool's
-offline tests in `test/`. Run from the repository root:
+offline tests in `test/`.
+
+- `src/scan.mts` is the CLI: validates setup, saves reports, and applies the shared policy.
+- `src/trivy-runner.mts` runs the Trivy container: collects bounded output, handles
+  timeout/interruption, and attempts cleanup after failure.
+
+Run from the repository root:
 
 ```sh
 npm ci --ignore-scripts

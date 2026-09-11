@@ -7,7 +7,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { scannerArguments, scannerImage, cacheVolume } from "../lib/scanner.mjs";
+import { scannerArguments, scannerImage, cacheVolume } from "../lib/trivy-runner.mjs";
 
 const script = fileURLToPath(new URL("../lib/scan.mjs", import.meta.url));
 async function fixture(t, scenario = "high") {
