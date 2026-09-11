@@ -11,13 +11,15 @@ is not enrolled by this change. One record covers one component, CVE, exact
 versioned PURL (including qualifiers), package name/version, and linux/amd64.
 No wildcards, cross-component inheritance, or source-commit locks.
 
-TODO (component onboarding): replace duplicated component lists and identity
+TODO ([component onboarding #10](https://github.com/movie-reservation-platform-lab/movie-platform-actions/issues/10)): replace duplicated component lists and identity
 mappings with a reviewed, data-driven component registry. Cover the exemption
 and evidence schemas, action profiles, and admission verifier together, with
 consistency tests and a documented onboarding procedure. Preserve explicit
 allowlisting and pinned trust identities; do not accept arbitrary caller-supplied
 repositories or discover trusted components from exemption requests. The current
-five-component list remains unchanged until that follow-up is designed.
+five-component list remains unchanged until that follow-up is designed. Evaluate
+service-owned metadata versus a central onboarding/meta repository as the source
+of truth, including how new entries are reviewed before becoming trusted.
 
 Use the [exemption PR template](../.github/PULL_REQUEST_TEMPLATE/security-exemption.md)
 and the `security-exemption` label. GitHub's PR creation URL can select it with
