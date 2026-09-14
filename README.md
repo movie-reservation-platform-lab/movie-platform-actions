@@ -20,8 +20,12 @@ The scan/evaluate helper and its dedicated tests live in
 [`local-tools/container-security/`](local-tools/container-security/).
 
 The [governed exemption contract](docs/vulnerability-exemption-contract.md) is
-foundation work for a later opt-in rollout. No exemption is active and the
-current action/local CLI still reject CRITICAL findings.
+foundation work for later v1alpha3 adoption. That version will evaluate approved
+exemptions automatically; admission will independently apply the latest approved
+policy to original verified findings. No exemption is active and the current
+action/local CLI still reject CRITICAL findings. The
+[reviewed plan](docs/plans/governed-vex-exemptions.md) separates contract correction,
+five environments implementation PRs, and later producer adoption.
 
 ## Development
 

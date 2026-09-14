@@ -14,7 +14,7 @@ grant approval. Do not bundle an exemption with unrelated action code changes.
 - Approval date and expiry (maximum 30 days accepted risk / 90 days not affected):
 - Original complete scan report / reproduction reference:
 - For renewal: what was reviewed again and why a fix/removal is not appropriate:
-- For withdrawal: affected consumers, pause/update procedure, and old-evidence rejection check:
+- For withdrawal: affected consumers and rejection check for a new admission attempt (in-flight attempts retain their decision):
 
 ## Checks
 
@@ -22,7 +22,7 @@ grant approval. Do not bundle an exemption with unrelated action code changes.
 - [ ] OpenVEX impact status matches the type; accepted risk is still `affected`.
 - [ ] Record links to this PR; owner, rationale, references and expiry are complete.
 - [ ] `npm run ci` passes; synthetic fixture records were not added as real approvals.
-- [ ] Producer/admission pin updates and fresh-evidence requirements are identified.
+- [ ] Expected coverage on the next admission attempt is documented; renewal alone requires neither an admission pin update nor new producer evidence.
 - [ ] Renewals increment VEX version and record a new explicit approval decision.
 
 ## Maintainer decision
