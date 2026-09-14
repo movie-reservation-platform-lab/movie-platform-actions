@@ -306,7 +306,10 @@ as admission; generated source and documentation match; no prohibited operations
 - [x] Producer policy snapshot choice settled: latest approved main per scan.
 - [x] Runtime implementation and adversarial adapter tests complete.
 - [x] Generated-package interoperability and required checks complete.
-- [ ] `[ai]` commits and PR prepared with accurate validation limits.
+- [x] `[ai]` commits and [PR #13](https://github.com/movie-reservation-platform-lab/movie-platform-actions/pull/13) prepared with accurate validation limits.
+
+The follow-up [review findings and reading guide](governed-exemption-runtime-review.md)
+record the four specialist reviews, new-teammate clarity refactor and verification.
 
 ## 18. Handoff Prompt for Implementation Agent
 

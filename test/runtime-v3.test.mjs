@@ -82,25 +82,98 @@ test("empty current policy permits only zero-CRITICAL reports", async t => {
   assert.equal(f.candidate().securityEvidence.vulnerabilityPolicy.evaluation.result, "passed");
 });
 
-for (const scenario of ["withdrawn", "expired", "no-purl", "acquisition-failed", "report-subject", "wrong-platform", "changed-during-acquisition", "report-limit", "sbom-limit", "provenance-limit", "symlink", "hardlink", "wrong-attestation", "pr-context"]) {
-  test(`v3 writer fails closed: ${scenario}`, async t => {
-    const f = fixture(t);
-    const policy = policyFixture(scenario === "withdrawn" ? [] : baseline.records);
-    let read = policy.read;
-    if (scenario === "no-purl") { delete f.report.Results[0].Vulnerabilities[0].PkgIdentifier; f.put("recommendation-mcp-vulnerabilities.json", f.report); }
-    if (scenario === "acquisition-failed") read = async () => { throw new Error("PRIVATE_SENTINEL"); };
-    if (scenario === "report-subject") { f.report.ArtifactName = "wrong:local"; f.put("recommendation-mcp-vulnerabilities.json", f.report); }
-    if (scenario === "wrong-platform") { f.report.Metadata.ImageConfig.architecture = "arm64"; f.put("recommendation-mcp-vulnerabilities.json", f.report); }
-    if (scenario === "changed-during-acquisition") read = async (...args) => { f.put("recommendation-mcp-vulnerabilities.json", {}); return policy.read(...args); };
-    for (const [name, file, limit] of [["report", "recommendation-mcp-vulnerabilities.json", 16], ["sbom", "recommendation-mcp.cdx.json", 16], ["provenance", "recommendation-mcp-provenance.json", 4]]) {
-      if (scenario === `${name}-limit`) truncateSync(join(f.evidence, file), limit * 1024 * 1024 + 1);
-    }
-    if (scenario === "symlink") { rmSync(join(f.evidence, "recommendation-mcp.cdx.json")); symlinkSync(join(f.evidence, "recommendation-mcp-provenance.json"), join(f.evidence, "recommendation-mcp.cdx.json")); }
-    if (scenario === "hardlink") linkSync(join(f.evidence, "recommendation-mcp.cdx.json"), join(f.directory, "extra-link"));
-    if (scenario === "wrong-attestation") f.env.ATTESTATION_URL = "https://evil.test";
-    if (scenario === "pr-context") f.env.GITHUB_EVENT_NAME = "pull_request";
-    await assert.rejects(generateV3Evidence(f.env, read, () => scenario === "expired" ? baseline.records[0].expiresAt : baseline.now));
-    assert.equal(existsSync(join(f.evidence, candidateName)), false);
+const writerRejections = [
+  {
+    name: "withdrawn approval",
+    prepare: context => { context.readPolicyJson = policyFixture([]).read; },
+    expected: /Unapproved CRITICAL findings block canonical evidence/,
+  },
+  {
+    name: "approval at its expiry instant",
+    prepare: context => { context.decisionTime = () => baseline.records[0].expiresAt; },
+    expected: /Unapproved CRITICAL findings block canonical evidence/,
+  },
+  {
+    name: "finding without an eligible PURL",
+    prepare: ({ fixture }) => { delete fixture.report.Results[0].Vulnerabilities[0].PkgIdentifier; },
+    expected: /Unapproved CRITICAL findings block canonical evidence/,
+  },
+  {
+    name: "failed policy acquisition",
+    prepare: context => { context.readPolicyJson = async () => { throw new Error("synthetic transport failure"); }; },
+    expected: /synthetic transport failure/,
+  },
+  {
+    name: "report describes another image",
+    prepare: ({ fixture }) => { fixture.report.ArtifactName = "wrong:local"; },
+    expected: { code: "report-subject-mismatch" },
+  },
+  {
+    name: "report has the wrong platform",
+    prepare: ({ fixture }) => { fixture.report.Metadata.ImageConfig.architecture = "arm64"; },
+    expected: { code: "report-platform-mismatch" },
+  },
+  {
+    name: "report changes during acquisition",
+    prepare: context => {
+      const readPolicyJson = context.readPolicyJson;
+      context.readPolicyJson = async (...args) => {
+        context.fixture.put("recommendation-mcp-vulnerabilities.json", {});
+        return readPolicyJson(...args);
+      };
+    },
+    expected: /Evidence member changed during policy acquisition/,
+  },
+  {
+    name: "SBOM is a symlink",
+    prepare: ({ fixture }) => {
+      rmSync(join(fixture.evidence, "recommendation-mcp.cdx.json"));
+      symlinkSync(join(fixture.evidence, "recommendation-mcp-provenance.json"), join(fixture.evidence, "recommendation-mcp.cdx.json"));
+    },
+    expected: { code: "ELOOP" },
+  },
+  {
+    name: "SBOM has another hard link",
+    prepare: ({ fixture }) => linkSync(join(fixture.evidence, "recommendation-mcp.cdx.json"), join(fixture.directory, "extra-link")),
+    expected: /Document must be a regular file without links/,
+  },
+  {
+    name: "attestation URL belongs to another authority",
+    prepare: ({ fixture }) => { fixture.env.ATTESTATION_URL = "https://evil.test"; },
+    expected: /Image provenance attestation URL does not match its profile/,
+  },
+  {
+    name: "PR context cannot publish",
+    prepare: ({ fixture }) => { fixture.env.GITHUB_EVENT_NAME = "pull_request"; },
+    expected: /GITHUB_EVENT_NAME is not the canonical publication context/,
+  },
+];
+
+for (const scenario of writerRejections) {
+  test(`v3 writer rejects ${scenario.name} for the intended reason`, async t => {
+    const context = { fixture: fixture(t), readPolicyJson: policyFixture().read, decisionTime: () => baseline.now };
+    scenario.prepare(context);
+    context.fixture.put("recommendation-mcp-vulnerabilities.json", context.fixture.report);
+    await assert.rejects(
+      generateV3Evidence(context.fixture.env, context.readPolicyJson, context.decisionTime),
+      scenario.expected,
+    );
+    assert.equal(existsSync(join(context.fixture.evidence, candidateName)), false);
+  });
+}
+
+for (const member of [
+  { name: "report", filename: "recommendation-mcp-vulnerabilities.json", maxBytes: 16 * 1024 * 1024, label: "Vulnerability report" },
+  { name: "SBOM", filename: "recommendation-mcp.cdx.json", maxBytes: 16 * 1024 * 1024, label: "SBOM" },
+  { name: "provenance", filename: "recommendation-mcp-provenance.json", maxBytes: 4 * 1024 * 1024, label: "Provenance bundle" },
+]) {
+  test(`v3 writer identifies the oversized ${member.name} and its exact byte limit`, async t => {
+    const workspace = fixture(t);
+    truncateSync(join(workspace.evidence, member.filename), member.maxBytes + 1);
+    await assert.rejects(generateV3Evidence(workspace.env, policyFixture().read, () => baseline.now), {
+      message: `${member.label} byte limit=${member.maxBytes}, observed=${member.maxBytes + 1}; inspect it using the local scanning path.`,
+    });
+    assert.equal(existsSync(join(workspace.evidence, candidateName)), false);
   });
 }
 

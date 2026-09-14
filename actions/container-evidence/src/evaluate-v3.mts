@@ -4,6 +4,11 @@ import { join } from "node:path";
 import { evaluateApprovedReport, renderApprovedSummary } from "./approved-evaluation.mjs";
 import { readDocument, requireRuntime, safeFailure, writeJson } from "./runtime-files.mjs";
 
+/**
+ * Called by the version-dispatch entrypoint to write complete diagnostic JSON and summary output.
+ * Exit 0 means no blockers, 1 means blocking CRITICALs, and 2 means no valid policy decision.
+ * This path accepts local subjects only and never writes a canonical candidate document.
+ */
 export async function runLocalEvaluation(env: NodeJS.ProcessEnv): Promise<void> {
   try {
     requireRuntime(env.SUBJECT_KIND === "local", "This v3 evaluator only produces non-admissible local/PR diagnostics.");
@@ -13,9 +18,9 @@ export async function runLocalEvaluation(env: NodeJS.ProcessEnv): Promise<void> 
     const decision = await evaluateApprovedReport(bytes, env.EXPECTED_IMAGE, env.COMPONENT, "local", env.GH_TOKEN);
     writeJson(join(workspace, "vulnerability-policy.json"), { diagnosticOnly: true, ...decision }, 1024 * 1024, "Local policy diagnostic");
     appendFileSync(env.GITHUB_STEP_SUMMARY, renderApprovedSummary(decision, "vulnerabilities.json and vulnerability-policy.json"));
-    const e = decision.evaluation;
-    appendFileSync(env.GITHUB_OUTPUT, `high-count=${e.counts.high}\ncritical-count=${e.counts.critical}\npolicy-result=${e.result}\n`);
-    process.exitCode = e.blockingCritical === 0 ? 0 : 1;
+    const evaluation = decision.evaluation;
+    appendFileSync(env.GITHUB_OUTPUT, `high-count=${evaluation.counts.high}\ncritical-count=${evaluation.counts.critical}\npolicy-result=${evaluation.result}\n`);
+    process.exitCode = evaluation.blockingCritical === 0 ? 0 : 1;
   } catch (error) {
     const message = safeFailure(error);
     if (env.GITHUB_WORKSPACE) {

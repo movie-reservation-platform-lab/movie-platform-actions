@@ -10,6 +10,7 @@ import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSy
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cacheVolume, runTrivy, scannerImage } from "./trivy-runner.mjs";
+import { parseEvaluatorOutput, validateApprovedDiagnostic, validateStrictResult } from "./evaluator-output.mjs";
 const usage = "Usage: node scan.mjs <local-image:tag> [--output-dir <directory>] [--evidence-version v1alpha2|v1alpha3 --component <component>]";
 const localImagePattern = /^[a-z0-9]+(?:[._-][a-z0-9]+)*(?:\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
 const evaluator = fileURLToPath(new URL("../../../actions/container-evidence/lib/evaluate-vulnerabilities.mjs", import.meta.url));
@@ -87,13 +88,13 @@ function inspectImageId(endpoint, image, env) {
 }
 /** Applies the shared evaluator and verifies its result; removes temporary GitHub output files. */
 function evaluateReport(directory, image, options) {
-    const output = join(directory, ".evaluator-output");
-    const summary = join(directory, ".evaluator-summary");
+    const outputPath = join(directory, ".evaluator-output");
+    const summaryPath = join(directory, ".evaluator-summary");
     try {
-        for (const path of [output, summary]) {
+        for (const path of [outputPath, summaryPath]) {
             writeFileSync(path, "", { flag: "wx", mode: 0o600 });
         }
-        const result = spawnSync(process.execPath, [evaluator], {
+        const evaluatorProcess = spawnSync(process.execPath, [evaluator], {
             env: {
                 ...process.env,
                 REPORT_PATH: "report.partial.json",
@@ -103,22 +104,21 @@ function evaluateReport(directory, image, options) {
                 COMPONENT: options.component,
                 EVIDENCE_ARTIFACT_NAME: "local-diagnostics",
                 GITHUB_WORKSPACE: directory,
-                GITHUB_OUTPUT: output,
-                GITHUB_STEP_SUMMARY: summary,
+                GITHUB_OUTPUT: outputPath,
+                GITHUB_STEP_SUMMARY: summaryPath,
             },
             stdio: ["ignore", "pipe", "pipe"],
             timeout: options.version === "v1alpha3" ? 150_000 : 30_000,
             killSignal: "SIGKILL",
             maxBuffer: 64 * 1024,
         });
-        const counts = /^high-count=(\d+)\ncritical-count=(\d+)\npolicy-result=(passed|passed-with-exemptions|failed)\n$/.exec(readFileSync(output, "utf8"));
-        if (result.error || !counts || !statSync(summary).isFile() || statSync(summary).size === 0) {
+        const output = parseEvaluatorOutput(readFileSync(outputPath, "utf8"));
+        if (evaluatorProcess.error || !output || !statSync(summaryPath).isFile() || statSync(summaryPath).size === 0) {
             throw new Error(options.version === "v1alpha3"
                 ? "V3 report/policy evaluation failure. Inspect retained vulnerability-policy-error.txt when present and report.partial.json; no policy fallback was used."
                 : "Report/evaluator failure. The shared evaluator could not validate the report; inspect the retained JSON.");
         }
-        const expectedStatus = counts[3] === "failed" ? 1 : 0;
-        if (result.status !== expectedStatus) {
+        if (evaluatorProcess.status !== output.expectedExitCode) {
             throw new Error("Report/evaluator failure: inconsistent policy result.");
         }
         if (options.version === "v1alpha3") {
@@ -126,25 +126,17 @@ function evaluateReport(directory, image, options) {
             if (!lstatSync(diagnosticPath).isFile() || statSync(diagnosticPath).size > 1024 * 1024)
                 throw new Error("Invalid local policy diagnostic file.");
             const diagnostic = JSON.parse(readFileSync(diagnosticPath, "utf8"));
-            const e = isRecord(diagnostic) ? diagnostic.evaluation : undefined;
-            if (!isRecord(diagnostic) || diagnostic.diagnosticOnly !== true || !isRecord(e) || !isRecord(e.counts) || !isRecord(e.exempted) ||
-                e.subject !== image || e.result !== counts[3] || e.counts.high !== Number(counts[1]) || e.counts.critical !== Number(counts[2]) ||
-                ![e.blockingCritical, e.exempted.notAffected, e.exempted.riskAccepted].every((value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0) ||
-                Number(e.blockingCritical) + Number(e.exempted.notAffected) + Number(e.exempted.riskAccepted) !== e.counts.critical ||
-                (e.blockingCritical === 0) !== (expectedStatus === 0) ||
-                (e.result === "passed") !== (e.counts.critical === 0))
-                throw new Error("Report/evaluator failure: inconsistent approved policy result.");
-            if (statSync(summary).size > 256 * 1024)
+            validateApprovedDiagnostic(diagnostic, image, output);
+            if (statSync(summaryPath).size > 256 * 1024)
                 throw new Error("Local policy summary exceeds its 256 KiB limit.");
-            return { high: counts[1], critical: counts[2], status: expectedStatus, details: readFileSync(summary, "utf8") };
+            return { high: output.highCount, critical: output.criticalCount, status: output.expectedExitCode, details: readFileSync(summaryPath, "utf8") };
         }
-        if (counts[3] === "passed-with-exemptions" || (counts[2] === "0") !== (expectedStatus === 0))
-            throw new Error("Report/evaluator failure: inconsistent strict policy result.");
-        return { high: counts[1], critical: counts[2], status: expectedStatus };
+        validateStrictResult(output);
+        return { high: output.highCount, critical: output.criticalCount, status: output.expectedExitCode };
     }
     finally {
         // Private temporary output only; never retain hosted artifact/PR summary wording.
-        for (const path of [output, summary]) {
+        for (const path of [outputPath, summaryPath]) {
             rmSync(path, { force: true });
         }
     }
