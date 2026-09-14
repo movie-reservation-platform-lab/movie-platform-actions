@@ -48,9 +48,12 @@ records can share analysis and one PR. The label/template are not approval.
    may also author the request. Record their explicit decision in the PR before
    merging. This lab currently has one member, so this is not independent
    security-team review. A self-declared `approval.by` field is not authentication.
-6. Once integration is available, adopt the reviewed full commit SHA in the
-   producer and independently in admission. Enable approved exemptions explicitly.
-   Obtain fresh canonical evidence; a policy PR alone does not admit an image.
+6. Once integration is available, v1alpha3 evaluates approved policy automatically;
+   there is no additional exemption opt-in. Admission retrieves the latest approved
+   policy from this repository's main once per attempt, recording the resolved SHA.
+   Producer evidence must still come from the trusted canonical publication path.
+   A renewal alone does not require new producer evidence; a policy PR alone does
+   not admit an image. Implementation/action pins remain reviewed full SHAs.
 
 When collaborators join, review CODEOWNERS, merge permissions and required reviews
 before treating additional contributors as approval authorities. CODEOWNERS without
@@ -69,13 +72,25 @@ to model roles in this lab.
   records through a PR; Git history preserves the audit trail.
 - Every use is visible. The final seven days add an expiry warning in scan output;
   no scan means no reminder. There is no scheduled notification service.
-- For emergency withdrawal, pause affected publication/admission, remove the record
-  through review, update producer and admission policy pins, verify rejection of
-  earlier evidence relying on it, then resume. Deletion on main is not instantaneous
-  revocation for old pins. Do not restore a revoked policy pin during rollback.
+- Remove or withdraw records through review on main. A new admission attempt
+  retrieves the updated policy automatically; there is no manual admission pin
+  update. Earlier evidence fails if its CRITICAL finding has no current valid
+  coverage. A reviewed renewal/replacement can cover the original finding without
+  changing the historical evidence. Do not require historical/current record equality.
+- An in-flight attempt retains its single decision even if policy changes or
+  expires afterward. There is no second retrieval or drift check. If an emergency
+  needs stronger immediate intervention, operators must handle that separately;
+  this feature does not cancel in-flight operations or stop running services.
 
 Expiry does not terminate already-running services. Runtime scanning/incident
 response remains separate; its existence is not assumed by this feature.
 
-Publication and local integration are PR3; independent admission support is PR2.
+Both producer and admission retain their own decision explanations. The initial
+admission workflow's 14-day result retention is accepted; indefinite storage is
+not required. Retention of producer evidence is separate and must be documented
+by its integration. Existing local tools are the debugging path for policy and
+document-limit failures; no notification service is introduced.
+
+The agreed sequence is contract correction followed by five environments PRs.
+Publication/local integration and service adoption follow compatible admission.
 See the [reviewed plan](../docs/plans/governed-vex-exemptions.md) for dependencies.

@@ -1,9 +1,17 @@
 # Implementation Plan: Governed VEX Container Vulnerability Exemptions
 
-Status: PR1 foundation implemented; PR2 verification and PR3 runtime integration remain pending.
-Issue: https://github.com/movie-reservation-platform-lab/movie-platform-actions/issues/5
-Branch: `issue-5-governed-vex-exemptions`
-Base: fetched `origin/main` at `7d8cadf6f5fab9e76abec43a701c19b87650eb11`.
+Status: Foundation merged in #9; reviewed contract correction is slice A of six.
+Current issue: https://github.com/movie-reservation-platform-lab/movie-platform-actions/issues/11
+Parent: https://github.com/movie-reservation-platform-lab/movie-platform-actions/issues/5
+Branch: `issue-11-v1alpha3-admission-contract`
+Base: fetched `origin/main` at `6a5af70ab18a8a93f54acde05badaef365d42d54`.
+
+The September 14 environments review completed twelve topics and agreed six
+focused PRs, with a preference for fewer where human review permits. The engineer
+authorized the first implementation slice only: correct this actions contract and
+add shared decision examples/tests. No producer activation or Python implementation
+is part of this PR. Downstream tracking:
+[environments #87](https://github.com/movie-reservation-platform-lab/movie-platform-environments/issues/87).
 
 ## PR1 Implementation Record
 
@@ -23,9 +31,10 @@ and 1 MiB v1alpha3 candidate limit. Full semantics and Python handoff are in
 implemented in the downstream reader and integration writer; a schema alone
 does not enable it.
 
-Verification: `npm run ci` passes all 100 tests (52 foundation tests plus the
+Historical foundation verification: `npm run ci` passed all 100 tests (52 foundation tests plus the
 existing 48), including generated-source checks. No live scanner/publication/admission check was performed, and
-#84/#85 and producer worktrees were not modified. PR2/PR3 remain separate work.
+#84/#85 and producer worktrees were not modified. Remaining work is now split
+into the six slices in section 12 and later producer integration.
 
 ## 1. Summary
 
@@ -35,9 +44,10 @@ OpenVEX plus platform approval metadata. Share a pure TypeScript evaluator acros
 local/PR/publication adapters; independently verify in Python at admission.
 
 Publish exception-aware evidence as v1alpha3, retaining the four-file package.
-Admission checks embedded approvals against its own reviewed policy revision.
-Deliver two PRs here and one in environments, with separate producer adoption
-and actual exemption-request PRs. This plan does not approve any vulnerability.
+Admission verifies the historical evidence, then independently evaluates original
+findings against latest approved actions policy, acquired once per attempt.
+Deliver this contract correction and five environments PRs before separate producer
+integration/adoption and exemption-request PRs. This plan approves no vulnerability.
 
 ## 2. Goals
 
@@ -53,8 +63,9 @@ and actual exemption-request PRs. This plan does not approve any vulnerability.
 - Approving current Perl/MCP findings or treating scanner suppression as proof.
 - Source-commit locking, automatic reachability analysis, or reapproval per rebuild.
 - A separate policy repository/package, generic policy engine, or reminder service.
-- Global CVE/package bypasses, raw producer ignore files, severity reduction, or
-  automatic trust of latest main.
+- Global CVE/package bypasses, raw producer ignore files or severity reduction.
+- A second policy fetch/expiry gate, fresh admission scans, manual environments
+  policy pins, duplicated approval inventory or indefinite audit storage.
 - Folding existing producer, environments #84/#85, or infra #52 work into this issue.
 - Live publication, workflow dispatch, IAM changes, admission, or deployment without
   separate explicit authorization.
@@ -98,11 +109,16 @@ image with three remaining perl-base findings. These are historical observations
 not new measurements or approved exemptions. Preserve the separate producer
 worktree and do not treat green PR checks that skip publication as image-policy proof.
 
-Read-only remote checks during topic 12 confirmed #84 and #85 open:
+Historical September 11 read-only checks during the original topic 12 found #84 and #85 open:
 #84 head `6b106ba6d52db11e9cf43e8d1ef4b2ea91df0c1a`, base main;
 #85 head `621cb64b1fd7fdad89524ba1bc287c42e822deda`, base
 `ai/all-container-admission`. #84's body still contains older dependency references.
 No comments, PR edits, or merges were performed.
+
+The subsequent environments review verified #84 merged at
+`fa6eb48daadc8404ed01e2baae4a684a7a97772b`. The historical PR snapshot above is not
+an instruction to merge or retarget either PR. Existing environments worktrees
+and its paused implementation draft must be preserved.
 
 Inspected #84's `container_candidate_profiles.py`: exact four-file membership,
 v1alpha1/v1alpha2 document names, and a 64 KiB candidate-document limit.
@@ -113,7 +129,9 @@ local checkout alone.
 
 ## 5. Confirmed Requirements, Decisions, and Remaining Detail
 
-All 12 topics were reviewed one at a time; multiple rounds stayed on the same topic.
+The foundation review and subsequent environments review were conducted one topic
+at a time. This table consolidates the current decisions, superseding the original
+manual-pin, approval-equality, opt-in and three-PR assumptions.
 
 | Topic | Agreed decision |
 | --- | --- |
@@ -121,24 +139,31 @@ All 12 topics were reviewed one at a time; multiple rounds stayed on the same to
 | 2 | Both non-applicability and risk acceptance from the initial release. |
 | 3 | Separate component + exact CVE + exact versioned PURL records. Shared analysis and multiple records in one PR allowed. |
 | 4 | Maximum 30-day risk acceptance / 90-day non-applicability; reviewed renewal, expiry at evaluation and admission, manual early revocation. User is current approver, including own requests. |
-| 5 | v1alpha3; four files with approvals/decisions embedded in the signed candidate document. Admission owns an independently reviewed policy pin. |
+| 5 | v1alpha3; four files with historical approvals/decisions embedded in the signed candidate. Admission independently retrieves latest approved actions main once, freezes its SHA and reevaluates original findings with current approvals. |
 | 6 | Standard OpenVEX block plus platform approval fields in one JSON record. |
 | 7 | No source-commit lock. Ordinary application changes do not cancel an in-scope time-boxed approval; stale-analysis risk is acknowledged. |
-| 8 | Shared TypeScript policy here, independent Python verification downstream, common fixtures; explicit exemption opt-in. |
+| 8 | Shared TypeScript policy here, independent Python downstream, common fixtures; v3 evaluates approved policy automatically without an extra opt-in. |
 | 9 | Clear raw/exempted/blocking counts; warnings for every used approval; seven-day expiry-soon warning in existing output. |
 | 10 | Unused expired record warns; expired approval cannot unblock a present finding. Malformed/conflicting selected policy fails explicitly. |
 | 11 | Focused offline policy/contract/adapter tests; local tests remain separate. Live checks separately authorized. |
-| 12 | Actions foundation PR, environments verifier PR, actions integration PR; producer adoption and real approvals separate. |
+| 12 | Foundation already merged. Contract correction plus five environments PRs; producer integration/adoption and real approvals separate. |
 
 Important steering: the user rejected the proposed per-source-revision binding
 because it would make the 30/90-day approval workflow painful. Do not reintroduce it.
 
-The policy decisions and PR split are agreed; implementation authority currently covers PR1 only.
-Exact field names, validation limits, and adapter mechanics are engineering work
-inside the scoped PRs below. Before freezing PR1's contract, settle explicit VEX
-product/subcomponent mapping, record equality/content identity, and representative
-Trivy PURL fixtures. Before PR2/PR3, settle trusted snapshot loading/provenance,
-closed version selection, intermediate receipt fields, and bounded document sizes.
+Also agreed: no before/after drift comparison or second expiry check; a changed
+policy or expiry after the current decision does not cancel that in-flight attempt.
+Renewal/replacement can cover original verified findings without new producer CI.
+Keep producer and admission explanations separately, with actual used approvals.
+Existing 14-day admission-result retention is acceptable for this release; no
+forever-storage requirement. Limits must fail clearly and be reproducible through
+the existing local path. Service-registration consolidation is tracked in actions
+#10 and organization .github#11; reservation-service migration is tracked in its #38.
+
+The current authorization covers slice A only. Existing record/candidate schemas
+and fixtures remain valid; new paired decision fixtures express the changed
+historical/current relationship. Downstream slices must settle intermediate receipt
+fields and explicit reader/writer sizes within the agreed contract.
 If those details require a different user-visible policy or new dependency, reopen
 that specific topic rather than silently changing the design.
 
@@ -147,10 +172,8 @@ that specific topic rather than silently changing the design.
 ### Central governance
 
 Use `security-exemptions/<component>/` with one JSON record per exact approved
-finding/package scope. Add
-`.github/PULL_REQUEST_TEMPLATE/security-exemption.md`, proposed GitHub label
-`security-exemption`, and CODEOWNERS coverage. No existing exemption template
-or label was found. Create them only in the implementation phase.
+finding/package scope. The foundation already added the exemption PR template,
+`security-exemption` label and CODEOWNERS coverage; do not recreate them.
 
 The PR captures request/renewal/removal intent, rationale, primary references,
 owner, expiry, and an explicit approval decision. Metadata or a label alone is
@@ -194,7 +217,9 @@ Proposed focused modules under `actions/container-evidence/src/`:
 Names can be adjusted to existing conventions without adding architectural layers.
 
 Inputs are validated report facts, component/platform context, validated trusted
-records, explicit opt-in, and an explicit evaluation time. Return original counts,
+records and an explicit evaluation time. Future v3 adapters select approved-policy
+evaluation automatically; the foundation's low-level boolean remains an internal
+strict/approved evaluation mode, not a new user switch. Return original counts,
 per-finding dispositions, exempted counts by type, blocking CRITICAL count,
 warnings, and a policy result. Keep filesystem, process, environment, and summary
 writing in executable adapters. No new runtime dependency is selected by this plan.
@@ -232,11 +257,13 @@ Invalid/operational results must never print a policy pass. Retain full machine-
 dispositions in the hosted candidate document or dedicated local diagnostic output.
 Bound annotations/summaries and link to complete retained diagnostics when necessary.
 
-### Opt-in and adapter behavior
+### Version selection and adapter behavior
 
-Hosted action: add `use-approved-exemptions`, default false, alongside the existing
-closed component selection. Local helper: proposed
-`--use-approved-exemptions --component <component>`. Preserve existing strict usage.
+Future hosted/local v3 integration uses closed component/version selection and
+automatically evaluates approved policy. Do not add `use-approved-exemptions` or
+`--use-approved-exemptions` as a separate user permission. Until that integration,
+existing hosted/local entrypoints remain strict. Missing valid approval leaves
+CRITICAL blocking; v3 adoption alone grants no exemption.
 
 Select records from the trusted action/policy revision, not a producer-chosen file,
 URL, repository, or arbitrary revision. PR-time checks use the same policy but are
@@ -256,20 +283,30 @@ including source revision/content identity, ownership, rationale, references,
 and expiry, in the signed candidate document. Bind decisions to image digest
 and report hash. Never redefine raw CRITICAL count to mean “unapproved count.”
 
-Admission remains Python. Share schemas and deterministic test fixtures rather than
-launch Node. It independently verifies signatures, package membership, hashes,
-subject, report-derived counts/dispositions, and approvals against its own reviewed
-full-SHA central-policy snapshot. A producer-declared revision is not authority.
+Admission remains Python. Share schemas and deterministic fixtures rather than
+launch Node. Authenticate producer/signatures, exact package membership, hashes
+and subject; recompute historical counts/dispositions and used-record identity at
+the signed evaluation time. Historical used records are preserved, not compared
+for equality against today's approvals.
 
-Compare used record content/identity, not merely whether repository SHAs differ:
-unchanged approvals remain usable across unrelated code/policy changes until expiry.
-Changed/renewed approvals require fresh matching evidence. Removed approvals fail
-after admission's trusted snapshot is updated. Snapshot retrieval must use trusted
-configuration and bounded I/O; no caller-controlled source or implicit latest main.
+Resolve fixed approved actions main to a current full SHA once per admission
+attempt, then acquire selected-component records at that SHA with authenticated,
+bounded I/O. A producer-declared source must not choose that authority. Failed
+acquisition stops admission; never substitute a stale snapshot or empty list.
+No committed environments inventory or manual policy-pin update is required.
 
-Expiry/revocation must be checked at admission time, not just at an earlier
-verification job. Intermediate trusted receipts must preserve sufficient bindings
-for that check. v1alpha1/v1alpha2 paths stay strict and cannot acquire exemptions.
+Reevaluate original verified findings with current validated approvals and current
+time once before registry work. A new/renewed/replaced approval can cover the exact
+finding without new producer evidence. Missing valid coverage blocks CRITICAL.
+Do not refetch or add expiry/drift checks after transfer; the next attempt observes
+new policy. This does not discover new CVEs absent from the original scan.
+
+Intermediate receipts preserve historical bindings. The final admission decision
+separately records policy SHA/content identity, decision time, original evidence/
+report and image digests, findings/counts and actual used approval records with
+rationale/expiry. Required destination verification still precedes successful
+admission proof. v1alpha1/v1alpha2 paths remain strict. Document evidence discovery
+and retention; initial admission-result retention remains 14 days.
 
 ## 7. Alternatives Considered
 
@@ -283,24 +320,29 @@ for that check. v1alpha1/v1alpha2 paths stay strict and cannot acquire exemption
 | In-place v1alpha2 extension | Rejected; closed schema and changed pass semantics need v1alpha3. |
 | Separate signed decision file | Not selected; embed decisions to preserve four-file membership. |
 | Entirely custom applicability format | Not selected; OpenVEX plus governance fields meets the need. |
-| Signature/expiry alone at admission | Insufficient for early revocation; use independently pinned approved records. |
+| Signature/expiry alone at admission | Insufficient; independently acquire latest approved policy per attempt. |
+| Manual environments policy pin/inventory | Rejected; duplicate adoption work and stale approvals. |
+| Historical/current approval equality | Rejected; prevents reviewed renewal without producer reruns. |
+| Before/after drift or second expiry gate | Rejected; one acquisition and current decision per attempt. |
 | One cross-language evaluator runtime | Not selected; independent Python plus shared fixtures avoids Node coupling. |
 
 ## 8. API / Interface Changes
 
 - New exemption-record schema and v1alpha3 candidate schema; no in-place v1alpha2 weakening.
-- Explicit hosted/local exemption opt-in and local component selection.
+- Automatic approved-policy evaluation for v3; closed component/version selection.
 - Evaluator output must distinguish raw counts, exemptions, and blocking findings.
 - New candidate-document filename in exact upload/attestation/reader membership.
-- Admission-owned policy revision configuration and version-aware trusted receipt data.
+- Fixed admission policy authority with per-attempt SHA resolution and versioned receipts.
 - No arbitrary ignore-file interface, new service, or automatic approval mechanism.
 
 ## 9. Data Model / Persistence Changes
 
 Versioned JSON policy records and embedded signed decision evidence; no database.
 New candidate format retains four files. Keep supported old schemas/fixtures.
-Record identity/comparison and bounded document layout must be frozen with PR1
-fixtures before downstream implementation depends on them.
+Existing canonical record identity and candidate layout remain unchanged.
+Historical/current decisions need not contain the same approvals. The new
+environment-owned audit receipts must define explicit bounds independently of
+the candidate's 1 MiB limit. No new storage infrastructure is part of this slice.
 
 ## 10. Security, Privacy, and Abuse Considerations
 
@@ -313,7 +355,7 @@ behavior cannot remove findings before evaluation. Keep full severity reporting 
 the existing scanner pin/settings. No advisory URL is executed or fetched as policy.
 
 Approval fields are not authenticated identities by themselves. Trusted revision
-selection, approval-content comparison, and exact signed subject/report bindings
+selection, current approval scope/validity and exact signed subject/report bindings
 must all be enforced. Separate runtime scanning is a desired future complementary
 control, not verified existing coverage or an excuse to weaken these checks.
 
@@ -321,194 +363,156 @@ control, not verified existing coverage or an excuse to weaken these checks.
 
 Reuse existing subprocess/report limits. Introduce bounded policy-record counts,
 file/string sizes, and a bounded v1alpha3 document; coordinate writer and reader
-limits. #84 currently caps that document at 64 KiB, which must not be silently
-exceeded by embedding records. Select explicit tested limits with PR1 fixtures.
+limits. The legacy candidate bound is 64 KiB; the agreed v3 bound is 1 MiB.
+Keep 128 selected records, 16 KiB per compact record, 4,096 result groups,
+10,000 findings and 768 KiB evaluation. Each new receipt needs its own tested bound.
+Enforce byte limits before parsing and structural limits before expensive work;
+never truncate decisions. Explain the failing document/limit and local reproduction.
 
 Avoid unbounded matching, retries, and network discovery. No dependency on live
-advisory availability. Opted-in policy-source errors fail explicitly, not via a
+advisory availability. Approved-policy acquisition errors fail explicitly, not via a
 silent policy fallback. Use a supplied clock in tests, not sleeps.
 
 ## 12. Implementation Steps and PR Boundaries
 
-### PR1 — actions foundation, on the current issue branch
+The original foundation merged in #9. The following six slices supersede the old
+PR2/PR3 split. Each PR carries its own tests and relevant documentation. The
+engineer accepted six while preferring fewer; do not add PRs just to mirror modules.
 
-1. Freeze the narrow exemption/v1alpha3 schemas and example field mapping under
-   `contracts/`; preserve v1alpha2 unchanged. Add shared decision fixtures under
-   `test/fixtures/vulnerability-policy/` and AJV schema/fixture checks.
-2. Add focused pure report/record/decision modules under
-   `actions/container-evidence/src/`, with succinct module/function documentation,
-   generated `lib/`, and focused tests. Existing executable adapters keep their
-   behavior until PR3; prove this with the existing regression suite.
-3. Add `security-exemptions/README.md`, component directory conventions, the
-   exemption PR template, CODEOWNERS coverage, and the requested label. Synthetic
-   examples belong in fixtures/docs, not active approvals of real findings.
-4. Document request/review/renewal/removal and snapshot identity. No new runtime
-   dependency without a justified plan update.
-5. Verify `npm run ci` and `git diff --check`; identify generated output separately
-   in review. This PR must not require environments #84/#85 to merge first.
+| Slice | Repository | Scope and verification |
+| --- | --- | --- |
+| A (this issue #11) | actions | Correct this plan, contract, governance and README; add paired historical/current decision fixtures and tests. Keep foundation schemas, existing vectors and production runtime unchanged. Run local CI. |
+| B | environments | Independent pure Python evaluation, reviewed shared contracts/fixtures and exact scope/time/hash/bounds tests. No admission wiring. |
+| C | environments | Closed v3 profiles/schema registration and package validation; historical report recomputation, versioned package receipt, local CLI and tampering/legacy tests. |
+| D | environments | Retrieval/attestation receipt propagation, bounded readers/writers and synthetic integration tests. Admission continues rejecting v3 until F. |
+| E | environments | Narrow policy acquisition port and authenticated latest-actions adapter; fixed authority, coherent SHA/content identity, bounded input and no-fallback tests. No local approval inventory. |
+| F | environments | One current admission decision, separate audit result and used approvals, existing local CLI composition, expiry/withdrawal/renewal tests and complete offline verification. |
 
-### PR2 — environments verifier, separate from existing #84/#85
+Dependencies: A precedes contract consumption, B precedes C, C precedes D,
+and F requires D and E. Implement and review one selected slice at a time.
+Unsupported v3 paths stay closed between PRs; no temporary bypass to make an
+intermediate PR pass. Keep repository-specific ports inward-owned, policy pure,
+and external mechanics in adapters. Tests run the same underlying code locally
+and in CI, with fake external systems.
 
-1. Start from the reviewed #84 foundation (prefer after it merges; otherwise
-   explicitly agree a stack). Do not silently amend #84 or #85.
-2. Extend `container_candidate_profiles.py`, `candidate_evidence/schema_validation.py`,
-   `candidate_evidence/compatibility.py`, and `schemas/` for closed v1alpha3 support,
-   exact four-file layout, and supported strict legacy paths.
-3. Add focused Python policy/snapshot adapters and consume PR1's reviewed schemas/
-   fixtures. Inspect/update `candidate_evidence_package/policy/vulnerability_report.py`,
-   `candidate_evidence_package/verification.py`, and candidate-evidence validation.
-4. Trace `candidate_evidence_attestation/` result/handoff schemas into
-   `candidate_admission/trusted.py`, `candidate_admission/policy.py`, and preflight
-   CRITICAL checks. Preserve decision bindings and recheck expiry/revocation at
-   final admission, rather than bypassing gates because an earlier step passed.
-5. Add reviewed policy-source configuration and bounded trusted snapshot loading;
-   no caller-selected source. Cover archive/file membership, tampering, record
-   changes, wrong subjects, and legacy receipts in corresponding `test/` suites.
-6. Run the downstream frozen-environment pytest/Ruff commands and existing bindings/
-   example validation checks. Read that repository's current guidance first.
-
-### PR3 — actions integration
-
-1. Update `evaluate-vulnerabilities.mts`, `write-candidate-evidence.mts`,
-   `profile.mts` as needed, and `action.yml` to use shared evaluation, explicit opt-in,
-   complete diagnostics, exact v1alpha3 attestation/upload membership, and safe
-   scanner configuration. Regenerate `lib/`.
-2. Update `local-tools/container-security/src/scan.mts`, local generated output,
-   and its dedicated tests for explicit component/opt-in, outcomes, and warnings.
-3. Update `docs/container-candidate-actions.md`, local runbook/helper README,
-   and producer PR-check integration instructions. Run full local CI.
-4. Require the compatible reader before enabling v1alpha3 production in consumers.
-   Validate actual changed source/schema/test size; do not conceal review size in
-   generated files or fold unrelated cleanup into these PRs.
+After F, plan small producer integration/adoption PRs separately: update the hosted
+evaluator/writer/profile and exact v3 membership, local scan helper and diagnostics,
+then consumer pins. Reader support must precede producers emitting v3. Do not fold
+that work, service-registration consolidation, reservation-service migration or
+real approvals into these six PRs. Preserve existing environments worktrees/draft.
 
 ## 13. Testing Strategy
 
-Use shared language-agnostic fixtures with fixed evaluation times:
+Retain the existing single-evaluation fixtures unchanged. Add explicit paired
+historical/current cases using the same original report and distinct policy/time
+inputs: renewal, replacement, current expiry and withdrawal. Expected outcomes
+must be authored independently of the evaluator, not regenerated from its output.
+Assert historical evidence/input immutability, current used-record details and
+stable original counts/subject. Keep the existing equality-helper tests as tests
+of that limited utility, not the new admission gate.
 
-- Both types; strict default; exact match and other-component/CVE/package/version failures.
-- Source changes alone preserve in-scope approval; original assessment dates remain intact.
-- Expiry instant, 30/90-day limits, seven-day warnings, reviewed renewals, unused expiry.
-- Invalid fields, missing owner/reference, ambiguity/conflicts, malformed selected policy.
-- Current trusted snapshot acceptance; removed/changed approvals and untrusted source rejection.
-- Original findings retained; correct raw/exempted/blocking counts; unchanged HIGH behavior.
-- Subject/report mismatch, tampering, four-file membership, unsupported versions, strict legacy behavior.
+These pure cases specify decision semantics only. Python slices must additionally
+prove authenticated acquisition, stale-receipt handling, one retrieval per attempt,
+new-attempt refresh, malformed/oversized input, safe failures before registry work,
+version isolation and success proof only after destination verification. Shared
+fixtures cannot prove a transport, signature or workflow is trusted.
 
-Use temporary files/fake executables for adapter tests, exercising checked-in JS.
-Keep local-helper tests dedicated; do not repeat every policy permutation through
-every CLI wrapper. No live registry, GitHub attestation, Trivy, or AWS calls in
-ordinary tests. Offline fixtures do not constitute live admission acceptance.
+Use supplied time, temporary files and fake executables/transports, never live
+GitHub, registry, Trivy or AWS in ordinary tests. Run existing legacy regression
+suites and generated-source checks. Tests accompany every implementation slice.
 
-Actions verification: `npm run ci`, `git diff --check`.
-Downstream verification: `uv run --frozen --no-sync pytest`,
-`uv run --frozen --no-sync ruff check .`,
-`uv run --frozen --no-sync ruff format --check .`, plus repository-prescribed
-executor bindings and example release validation. Recheck instructions when entering it.
+Actions verification:
+
+```sh
+npm ci --ignore-scripts
+npm run ci
+git diff --check
+```
+
+The tests are offline; dependency installation may require network access.
+Downstream uses its repository-prescribed pytest, Ruff and manifest checks.
+Report command outcomes and limits; code readiness is not live acceptance.
 
 ## 14. Rollout, Migration, and Rollback
 
-The existing producer/admission rollout and this exemption feature are related
-but distinct. Code readiness does not make any candidate admissible.
+Current hosted/local entrypoints remain strict v1alpha2. Slice A changes documented
+integration semantics and adds executable examples, not a public action interface.
+Implementation/action pins remain reviewed full SHAs. Admission approval retrieval
+is a distinct authority/freshness rule: latest approved main, resolved once to SHA.
 
-- PR1 can proceed independently of #84/#85 and the unresolved MCP findings.
-- #84 supplies the downstream foundation; merge it before retargeting/revalidating
-  #85. This plan authorizes neither operation.
-- New PR2 extends that foundation. #85 need not be folded into or blocked on VEX
-  development for code review, but newly selected exempted images require the
-  updated verification/admission path and compatible receipts.
-- Complete the new reader before producers emit v1alpha3 through PR3/adoption.
-- Remaining producer PRs are web #16, recommendation-service #10, reservation-mcp #9,
-  and agent #17 per the supplied handoff; recommendation-mcp #9 already merged.
-  Refresh actual statuses/pins before acting. Old #84 dependency numbers are stale.
-- Producer adoption PRs enable PR-time production-image scans and update reviewed
-  action pins/opt-in. Do not equate green publication-skipping PR checks with
-  vulnerability acceptance. Inspect each production image.
-- Real exemptions require separate reviewed requests. Installing this capability
-  alone will not unblock the current Perl findings.
-- Obtain fresh successful canonical main evidence for each candidate selected for
-  admission. Historical summary-only output and rejected reports remain ineligible.
-- Infra #52 IAM application and evidence-reader App access are separately operated
-  prerequisites for live admission. Neither merging this feature nor the old PR
-  set completes live acceptance.
+Complete A–F before producer adoption. A valid centrally approved record is the
+only exemption permission once v3 is adopted; no extra enable-exemptions switch.
+No approval means a CRITICAL finding still blocks. Old producer evidence must
+remain authentic and complete; summary-only or rejected reports do not become
+admissible. Renewals alone do not require fresh canonical producer evidence.
 
-Rollback: disable exemption opt-in to restore strict evaluation. Reverting a
-consumer action pin to v1alpha2 requires a reader that still supports that strict
-contract; v1alpha3 may be rejected, never reinterpreted as legacy. Do not roll
-admission's trusted policy back to resurrect a withdrawn approval.
+If a verifier rollback leaves v3 unsupported, suspend v3 admission until compatible
+verification is restored. Reverting producer implementation pins to a strict
+version requires genuinely compatible evidence; never reinterpret v3 as legacy or
+restore an old policy snapshot to resurrect revoked approvals.
 
-Emergency withdrawal: pause affected publication/admission, remove/withdraw the
-central record through review, update producer pins and admission's trusted
-snapshot, verify rejection of old evidence relying on that record, then resume.
-Old configurations do not learn revocations automatically. Already-running
-services are not stopped by expiry; runtime incident response is separate.
+Withdraw through review on actions main. New admission attempts acquire the updated
+policy and reject findings lacking current valid coverage. No manual admission pin
+update is needed. In-flight attempts keep their single decision; emergency operator
+intervention and running-service incident response are separate from this feature.
 
-Review schema/code/test PRs before merges; all merges, dispatches, publication,
-IAM/App changes, admission, and deployment require their own authorization.
+Initial admission-result retention is 14 days. Document discovery and the actual
+producer evidence retention separately; a digest does not preserve the referenced
+artifact. Future storage work follows an actual need, not a forever-retention goal.
+
+Do not merge, dispatch workflows, publish/copy images, mutate IAM/App/AWS resources,
+admit artifacts or deploy as part of this implementation. Consumer rollout and live
+acceptance remain separate release actions.
 
 ## 15. Risks and Mitigations
 
-| Risk | Impact | Likelihood | Mitigation |
-| --- | --- | --- | --- |
-| Producer self-authorizes suppression | High | Plausible | Trusted centrally reviewed records; independent admission snapshot |
-| Evaluator/writer/Python disagree | High | Plausible | Shared TS rules, common schema/decision fixtures, adapter tests |
-| Old reader rejects/misreads new evidence | High | Expected without migration | Explicit version, closed membership, reader-first adoption |
-| Withdrawn approval remains in old pins | High | Plausible | Explicit operator update/pause procedure; expiry recheck |
-| Analysis becomes stale after code changes | High | Plausible | Accepted time-boxed risk, dated rationale, visible warnings, manual withdrawal |
-| Embedded metadata exceeds reader limits | Medium | Plausible | Agreed tested writer/reader bounds; explicit failure |
-| Feature grows into the whole rollout | Medium | Plausible | Three scoped implementation PRs; existing producer/infra/admission work separate |
+| Risk | Mitigation |
+| --- | --- |
+| Producer self-authorizes suppression | Authenticate original evidence and independently acquire fixed current actions authority. |
+| Evaluators disagree | Unchanged shared vectors plus paired historical/current cases; independent Python and adapter tests. |
+| Approval changes after decision | Accepted in-flight behavior; new attempt fetches again. |
+| Historical approval equality rejects renewal | Reevaluate original findings using current scope/validity; preserve separate audit records. |
+| Fresh policy mistaken for a fresh scan | Explicitly retain original report; new CVEs require new assessment outside this slice. |
+| Old reader mishandles v3 | Closed versions and reader-first adoption; unsupported paths reject. |
+| Audit artifact expires | Accepted initial retention; document limits without claiming permanent history. |
+| Large PR obscures review | Six focused slices with tests/docs per slice; no automatic expansion. |
 
 ## 16. Done Criteria
 
-- Reviewed contract/profile frozen with valid and invalid examples.
-- Approved behavior implemented and verified in all scoped adapters/readers.
-- Original reports preserved; signed approvals and counts cannot be substituted.
-- Strict defaults and supported legacy verification remain intact.
-- Template/label/ownership and renewal/revocation docs available.
-- Generated code matches source; offline checks pass in each affected repository.
-- Producer migration dependencies and any unperformed live checks are explicit.
-- No real exemption or live acceptance claimed without separate evidence/approval.
+For slice A: contract, governance and plan agree on reviewed semantics; paired
+fixtures have explicit expected decisions and passing offline tests; runtime and
+existing schemas remain unchanged; full local CI and diff hygiene pass; issue,
+branch, commit and PR identify #11. Stop with the focused PR and verification
+report, with no live acceptance claim or later-slice implementation.
 
 ## 17. Review Checklist
 
-- [x] All 12 user-facing topics and non-goals reviewed
-- [x] Alternatives and rejected source-lock proposal recorded
-- [x] Security/lifecycle, tests, PR boundaries, and rollout dependencies agreed
-- [x] Existing #84/#85 stacking checked without changing either PR
-- [x] Concrete PR/module targets and verification commands identified
-- [x] PR1 exact schema, matching fixtures, equality rules, and bounds frozen
-- [ ] PR2/PR3 snapshot/provenance and receipt adapters validated against current branches
-- [x] PR1 implementation authorized and completed; no runtime integration yet
-- [ ] PR2 and PR3 implementation authorized and completed
-- [ ] Separate rollout/live acceptance authorized where required
+- [x] Twelve environments review topics and six PR boundaries agreed
+- [x] Contract authority, one-decision timing and historical/current separation explicit
+- [x] Existing strict runtime and schema compatibility preserved in slice A
+- [x] Document limits, local debugging and initial retention addressed
+- [x] Slice A offline verification and final diff reviewed
+- [ ] Downstream receipts, authenticated acquisition and Python verifier implemented
+- [ ] Separate producer integration and live acceptance planned/authorized
 
-## 18. Handoff Prompt for the First Implementation PR
+## 18. Handoff
 
-PR1 is implemented. The prompt below records its authorized boundary; do not
-repeat completed work. PR2/PR3 still need separate implementation authorization.
+Implement only the explicitly selected slice above. Slice A uses
+`issue-11-v1alpha3-admission-contract` and references #11 in commits and its PR,
+with `[ai]` prefixes. Preserve unrelated checkouts and worktrees. Do not execute
+or copy the TypeScript evaluator into environments: share reviewed contracts and
+fixtures. Complete repository checks and stop with that slice's reviewable PR and
+offline verification report. Do not proceed automatically to later slices.
 
-```text
-Implement PR1 (actions foundation only) from
-docs/plans/governed-vex-exemptions.md.
-
-Use issue-5-governed-vex-exemptions after checking branch/worktree state.
-Preserve unrelated changes and the separate MCP remediation worktree.
-
-Create the narrow OpenVEX-plus-governance schema, v1alpha3 schema, shared
-decision fixtures, pure TypeScript evaluation modules, focused offline tests,
-dedicated exemption directory/docs, PR template, and requested label.
-
-Keep hosted/local executable behavior unchanged in this PR. No production
-exemption records, no consumer pin changes, no environments #84/#85 edits,
-no merges, dispatches, image publication, AWS/App changes, or admission.
-
-Do not add a runtime dependency or change an agreed policy silently. Resolve
-exact schema/product/PURL mapping, record equality, and bounded sizes with
-fixtures; update the plan if facts require a material change. Preserve
-application-commit-independent 30/90-day approvals and strict defaults.
-
-Edit src, regenerate lib, run npm run ci and git diff --check. Present the
-actual handwritten/schema/generated diff boundaries and downstream handoff.
-Stop at the PR1 review boundary; do not automatically implement PR2 or PR3.
-```
+Slice A offline verification (September 14, 2026): `npm ci --ignore-scripts`
+completed; `npm run ci` passed generated-source checks and all 108 tests (95 action
+tests including eight new decision pairs, plus 13 local-tool tests).
+`git diff --check` passed. Node v24.14.0 / npm 11.9.0. The eight pairs also passed
+with the focused local command in the fixture README. No production source,
+generated JavaScript, schemas, existing JSON vectors or dependencies changed.
+No live signature, GitHub acquisition, registry, admission or AWS behavior was
+tested; those integrations are outside slice A. The final diff review also removed
+the old manual-pin/fresh-evidence requirement from the exemption PR template.
 
 ## Research References
 
