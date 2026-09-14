@@ -3,7 +3,9 @@ import { publicationContext, requireDigest } from "./profile.mjs";
 
 const profile = publicationContext(process.env);
 requireDigest(process.env.CANDIDATE_DIGEST);
+const version = process.env.EVIDENCE_VERSION ?? "v1alpha2";
+if (version !== "v1alpha2" && version !== "v1alpha3") throw new Error("Unsupported evidence version");
 appendFileSync(
   process.env.GITHUB_OUTPUT!,
-  `image_ref=${profile.image}\nartifact=${profile.artifact}\n`,
+  `image_ref=${profile.image}\nartifact=${profile.artifact}\ndocument=component-candidate-evidence-${version}.json\nversion=${version}\n`,
 );

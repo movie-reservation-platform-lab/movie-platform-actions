@@ -9,7 +9,8 @@ The initial actions prepare and attest runnable container candidates:
   publication and creates attempt-unique discovery metadata.
 - `actions/container-evidence` verifies provenance, records an SBOM and
   complete vulnerability report, enforces the provisional CRITICAL gate, and
-  emits the closed v1alpha2 four-file evidence package.
+  emits a closed four-file evidence package (strict v1alpha2 by default,
+  governed approvals with explicit v1alpha3 selection).
 
 See [the action contract](docs/container-candidate-actions.md) for supported
 components, caller permissions, pinning, rollback, and admission boundaries.
@@ -20,12 +21,12 @@ The scan/evaluate helper and its dedicated tests live in
 [`local-tools/container-security/`](local-tools/container-security/).
 
 The [governed exemption contract](docs/vulnerability-exemption-contract.md) is
-foundation work for later v1alpha3 adoption. That version will evaluate approved
-exemptions automatically; admission will independently apply the latest approved
-policy to original verified findings. No exemption is active and the current
-action/local CLI still reject CRITICAL findings. The
-[reviewed plan](docs/plans/governed-vex-exemptions.md) separates contract correction,
-five environments implementation PRs, and later producer adoption.
+available through explicit v1alpha3 hosted/local runtime selection. Each evaluation
+retrieves the latest reviewed central approvals and blocks every unapproved CRITICAL,
+retaining complete findings and decisions. Legacy invocations remain strict.
+Admission independently applies current approvals to original verified findings.
+No exemption is active. The [runtime plan](docs/plans/governed-exemption-runtime-integration.md)
+keeps producer adoption, hosted admission activation and actual approvals separate.
 
 ## Development
 

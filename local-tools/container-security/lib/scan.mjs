@@ -10,9 +10,32 @@ import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSy
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cacheVolume, runTrivy, scannerImage } from "./trivy-runner.mjs";
-const usage = "Usage: node scan.mjs <local-image:tag> [--output-dir <directory>]";
+import { parseEvaluatorOutput, validateApprovedDiagnostic, validateStrictResult } from "./evaluator-output.mjs";
+const usage = "Usage: node scan.mjs <local-image:tag> [--output-dir <directory>] [--evidence-version v1alpha2|v1alpha3 --component <component>]";
 const localImagePattern = /^[a-z0-9]+(?:[._-][a-z0-9]+)*(?:\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
 const evaluator = fileURLToPath(new URL("../../../actions/container-evidence/lib/evaluate-vulnerabilities.mjs", import.meta.url));
+/** Keep old invocations strict; v3 selects a component, never a caller policy file. */
+function parseOptions(args) {
+    const options = new Map();
+    for (let index = 1; index < args.length; index += 2) {
+        const key = args[index];
+        const value = args[index + 1];
+        if (!["--output-dir", "--evidence-version", "--component"].includes(key) || !value || value.startsWith("--") || options.has(key))
+            throw new Error(usage);
+        options.set(key, value);
+    }
+    const version = options.get("--evidence-version") ?? "v1alpha2";
+    const component = options.get("--component");
+    if (version !== "v1alpha2" && version !== "v1alpha3")
+        throw new Error(usage);
+    if (version === "v1alpha3" && !["reservation-agent", "recommendation-service", "reservation-mcp", "recommendation-mcp", "reservation-web"].includes(component ?? ""))
+        throw new Error("V3 requires an allowlisted --component; see --help.");
+    if (version === "v1alpha2" && component !== undefined)
+        throw new Error("--component requires --evidence-version v1alpha3.");
+    if (version === "v1alpha3" && !process.env.GH_TOKEN)
+        throw new Error("V3 requires GH_TOKEN with read access to the central actions approvals. No policy fallback is allowed.");
+    return { version, component, output: options.get("--output-dir") ?? ".local-container-security" };
+}
 /** Runs a bounded Docker setup command and hides raw process errors from local output. */
 function runDockerCommand(args, env) {
     const result = spawnSync("docker", args, {
@@ -64,42 +87,56 @@ function inspectImageId(endpoint, image, env) {
     return match[1];
 }
 /** Applies the shared evaluator and verifies its result; removes temporary GitHub output files. */
-function evaluateReport(directory, image) {
-    const output = join(directory, ".evaluator-output");
-    const summary = join(directory, ".evaluator-summary");
+function evaluateReport(directory, image, options) {
+    const outputPath = join(directory, ".evaluator-output");
+    const summaryPath = join(directory, ".evaluator-summary");
     try {
-        for (const path of [output, summary]) {
+        for (const path of [outputPath, summaryPath]) {
             writeFileSync(path, "", { flag: "wx", mode: 0o600 });
         }
-        const result = spawnSync(process.execPath, [evaluator], {
+        const evaluatorProcess = spawnSync(process.execPath, [evaluator], {
             env: {
                 ...process.env,
                 REPORT_PATH: "report.partial.json",
                 EXPECTED_IMAGE: image,
                 SUBJECT_KIND: "local",
+                EVIDENCE_VERSION: options.version,
+                COMPONENT: options.component,
                 EVIDENCE_ARTIFACT_NAME: "local-diagnostics",
                 GITHUB_WORKSPACE: directory,
-                GITHUB_OUTPUT: output,
-                GITHUB_STEP_SUMMARY: summary,
+                GITHUB_OUTPUT: outputPath,
+                GITHUB_STEP_SUMMARY: summaryPath,
             },
             stdio: ["ignore", "pipe", "pipe"],
-            timeout: 30_000,
+            timeout: options.version === "v1alpha3" ? 150_000 : 30_000,
             killSignal: "SIGKILL",
             maxBuffer: 64 * 1024,
         });
-        const counts = /^high-count=(\d+)\ncritical-count=(\d+)\npolicy-result=(passed|failed)\n$/.exec(readFileSync(output, "utf8"));
-        if (result.error || !counts || !statSync(summary).isFile() || statSync(summary).size === 0) {
-            throw new Error("Report/evaluator failure. The shared evaluator could not validate the report; inspect the retained JSON.");
+        const output = parseEvaluatorOutput(readFileSync(outputPath, "utf8"));
+        if (evaluatorProcess.error || !output || !statSync(summaryPath).isFile() || statSync(summaryPath).size === 0) {
+            throw new Error(options.version === "v1alpha3"
+                ? "V3 report/policy evaluation failure. Inspect retained vulnerability-policy-error.txt when present and report.partial.json; no policy fallback was used."
+                : "Report/evaluator failure. The shared evaluator could not validate the report; inspect the retained JSON.");
         }
-        const expectedStatus = counts[3] === "passed" ? 0 : 1;
-        if (result.status !== expectedStatus || (counts[2] === "0") !== (expectedStatus === 0)) {
+        if (evaluatorProcess.status !== output.expectedExitCode) {
             throw new Error("Report/evaluator failure: inconsistent policy result.");
         }
-        return { high: counts[1], critical: counts[2], status: expectedStatus };
+        if (options.version === "v1alpha3") {
+            const diagnosticPath = join(directory, "vulnerability-policy.json");
+            if (!lstatSync(diagnosticPath).isFile() || statSync(diagnosticPath).size > 1024 * 1024)
+                throw new Error("Invalid local policy diagnostic file.");
+            const diagnostic = JSON.parse(readFileSync(diagnosticPath, "utf8"));
+            validateApprovedDiagnostic(diagnostic, image, output);
+            if (statSync(summaryPath).size > 256 * 1024)
+                throw new Error("Local policy summary exceeds its 256 KiB limit.");
+            return { high: output.highCount, critical: output.criticalCount, status: output.expectedExitCode, details: readFileSync(summaryPath, "utf8") };
+        }
+        validateStrictResult(output);
+        return { high: output.highCount, critical: output.criticalCount, status: output.expectedExitCode };
     }
     finally {
         // Private temporary output only; never retain hosted artifact/PR summary wording.
-        for (const path of [output, summary]) {
+        for (const path of [outputPath, summaryPath]) {
             rmSync(path, { force: true });
         }
     }
@@ -126,9 +163,9 @@ function renderSummary(image, expectedId, outcome, reportPath) {
         `Scanner: ${scannerImage}`,
         `Scanned at: ${new Date().toISOString()}`,
         `HIGH: ${outcome.high}; CRITICAL: ${outcome.critical}`,
-        outcome.status === 0
+        outcome.details ?? (outcome.status === 0
             ? "Policy passed: no CRITICAL findings."
-            : "Policy rejected: CRITICAL findings detected.",
+            : "Policy rejected: CRITICAL findings detected."),
         `Complete report: ${reportPath}`,
         "HIGH findings remain non-blocking locally. This is not PR authority, signed evidence, publication acceptance, or environment admission.",
         "",
@@ -141,9 +178,10 @@ async function main() {
         console.log(usage);
         return;
     }
-    if (!(args.length === 1 || (args.length === 3 && args[1] === "--output-dir" && args[2]))) {
+    if (args.length === 0) {
         throw new Error(usage);
     }
+    const options = parseOptions(args);
     const image = args[0];
     if (!localImagePattern.test(image) || image.length > 255) {
         throw new Error("Use an explicit local image:tag, not a digest, URL, or registry port.");
@@ -153,7 +191,7 @@ async function main() {
     }
     const { endpoint, socket, env } = resolveDockerConnection();
     const expectedId = inspectImageId(endpoint, image, env);
-    const root = resolve(args[2] ?? ".local-container-security");
+    const root = resolve(options.output);
     mkdirSync(root, { recursive: true, mode: 0o700 });
     if (!lstatSync(root).isDirectory()) {
         throw new Error("Output root must be a directory, not a symlink.");
@@ -168,7 +206,7 @@ async function main() {
             throw new Error(scanned.failure);
         }
         validateReportImage(scanned.report, expectedId);
-        const outcome = evaluateReport(directory, image);
+        const outcome = evaluateReport(directory, image, options);
         const reportPath = join(directory, "vulnerabilities.json");
         renameSync(partial, reportPath);
         const summary = renderSummary(image, expectedId, outcome, reportPath);

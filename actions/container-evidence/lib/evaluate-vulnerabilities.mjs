@@ -15,53 +15,62 @@ const supportedSeverities = new Set([
     "HIGH",
     "CRITICAL",
 ]);
-try {
-    const reportPathInput = requireEnvironmentVariable("REPORT_PATH");
-    const expectedImage = requireEnvironmentVariable("EXPECTED_IMAGE");
-    const subjectKind = parseSubjectKind(requireEnvironmentVariable("SUBJECT_KIND"));
-    const evidenceArtifactName = requireEnvironmentVariable("EVIDENCE_ARTIFACT_NAME");
-    const githubOutput = requireEnvironmentVariable("GITHUB_OUTPUT");
-    const githubStepSummary = requireEnvironmentVariable("GITHUB_STEP_SUMMARY");
-    const githubWorkspace = requireEnvironmentVariable("GITHUB_WORKSPACE");
-    validateExpectedImage(expectedImage, subjectKind);
-    if (!artifactNamePattern.test(evidenceArtifactName)) {
-        throw new Error(`Evidence artifact name contains unsupported characters: ${evidenceArtifactName}`);
+if (process.env.EVIDENCE_VERSION === "v1alpha3") {
+    const { runLocalEvaluation } = await import("./evaluate-v3.mjs");
+    await runLocalEvaluation(process.env);
+}
+else if (process.env.EVIDENCE_VERSION && process.env.EVIDENCE_VERSION !== "v1alpha2") {
+    reportWorkflowError("Unsupported evidence version.");
+    process.exitCode = 2;
+}
+else
+    try {
+        const reportPathInput = requireEnvironmentVariable("REPORT_PATH");
+        const expectedImage = requireEnvironmentVariable("EXPECTED_IMAGE");
+        const subjectKind = parseSubjectKind(requireEnvironmentVariable("SUBJECT_KIND"));
+        const evidenceArtifactName = requireEnvironmentVariable("EVIDENCE_ARTIFACT_NAME");
+        const githubOutput = requireEnvironmentVariable("GITHUB_OUTPUT");
+        const githubStepSummary = requireEnvironmentVariable("GITHUB_STEP_SUMMARY");
+        const githubWorkspace = requireEnvironmentVariable("GITHUB_WORKSPACE");
+        validateExpectedImage(expectedImage, subjectKind);
+        if (!artifactNamePattern.test(evidenceArtifactName)) {
+            throw new Error(`Evidence artifact name contains unsupported characters: ${evidenceArtifactName}`);
+        }
+        const reportPath = resolveWorkspaceFile(reportPathInput, githubWorkspace);
+        const report = readTrivyReport(reportPath);
+        if (report.ArtifactName !== expectedImage) {
+            throw new Error(`Trivy report artifact ${String(report.ArtifactName)} does not match expected image ${expectedImage}`);
+        }
+        const vulnerabilities = collectVulnerabilities(report.Results);
+        const highCount = vulnerabilities.filter((vulnerability) => vulnerability.severity === "HIGH").length;
+        const criticalFindings = vulnerabilities.filter((vulnerability) => vulnerability.severity === "CRITICAL");
+        const criticalCount = criticalFindings.length;
+        const policyResult = criticalCount === 0 ? "passed" : "failed";
+        appendFileSync(githubOutput, [
+            `high-count=${highCount}`,
+            `critical-count=${criticalCount}`,
+            `policy-result=${policyResult}`,
+            "",
+        ].join("\n"));
+        appendFileSync(githubStepSummary, renderSummary({
+            criticalCount,
+            criticalFindings,
+            evidenceArtifactName,
+            expectedImage,
+            highCount,
+            policyResult,
+            subjectKind,
+        }));
+        if (criticalCount > 0) {
+            reportWorkflowError(`Provisional container policy failed: ${criticalCount} CRITICAL vulnerability finding(s) detected.`);
+            process.exitCode = 1;
+        }
     }
-    const reportPath = resolveWorkspaceFile(reportPathInput, githubWorkspace);
-    const report = readTrivyReport(reportPath);
-    if (report.ArtifactName !== expectedImage) {
-        throw new Error(`Trivy report artifact ${String(report.ArtifactName)} does not match expected image ${expectedImage}`);
-    }
-    const vulnerabilities = collectVulnerabilities(report.Results);
-    const highCount = vulnerabilities.filter((vulnerability) => vulnerability.severity === "HIGH").length;
-    const criticalFindings = vulnerabilities.filter((vulnerability) => vulnerability.severity === "CRITICAL");
-    const criticalCount = criticalFindings.length;
-    const policyResult = criticalCount === 0 ? "passed" : "failed";
-    appendFileSync(githubOutput, [
-        `high-count=${highCount}`,
-        `critical-count=${criticalCount}`,
-        `policy-result=${policyResult}`,
-        "",
-    ].join("\n"));
-    appendFileSync(githubStepSummary, renderSummary({
-        criticalCount,
-        criticalFindings,
-        evidenceArtifactName,
-        expectedImage,
-        highCount,
-        policyResult,
-        subjectKind,
-    }));
-    if (criticalCount > 0) {
-        reportWorkflowError(`Provisional container policy failed: ${criticalCount} CRITICAL vulnerability finding(s) detected.`);
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        reportWorkflowError(`Unable to evaluate container vulnerability evidence: ${message}`);
         process.exitCode = 1;
     }
-}
-catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    reportWorkflowError(`Unable to evaluate container vulnerability evidence: ${message}`);
-    process.exitCode = 1;
-}
 /** Accepts only the supported image kinds: an immutable GHCR image or a local image. */
 function parseSubjectKind(value) {
     if (value === "immutable-ghcr" || value === "local") {

@@ -1,10 +1,11 @@
 # Governed vulnerability exemptions
 
 This is the central approval location, not a scanner ignore directory. **There
-are no active approvals in this foundation PR.** Hosted and local execution
-still use the existing strict CRITICAL gate until the integration rollout.
+are no active approvals.** Hosted and local execution default to the strict
+CRITICAL gate. Explicit v1alpha3 selection evaluates the latest approved central
+policy; service adoption and actual exemption approval remain separate reviews.
 
-After that rollout, records live at `<component>/<EX-ID>.json`, for one of:
+Records live at `<component>/<EX-ID>.json`, for one of:
 `recommendation-mcp`, `reservation-mcp`, `recommendation-service`,
 `reservation-agent`, or `reservation-web`. The legacy reservation-service pilot
 is not enrolled by this change. One record covers one component, CVE, exact
@@ -91,6 +92,7 @@ not required. Retention of producer evidence is separate and must be documented
 by its integration. Existing local tools are the debugging path for policy and
 document-limit failures; no notification service is introduced.
 
-The agreed sequence is contract correction followed by five environments PRs.
-Publication/local integration and service adoption follow compatible admission.
+The contract correction and five environments implementation slices are merged.
+Publication/local runtime integration prepares explicit v3 adoption; producer pins
+and hosted environments activation remain separate changes.
 See the [reviewed plan](../docs/plans/governed-vex-exemptions.md) for dependencies.

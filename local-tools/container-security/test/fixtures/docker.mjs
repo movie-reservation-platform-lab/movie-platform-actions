@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Offline Docker double. No daemon connections, images, registry, or scanner.
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 const args = process.argv.slice(2);
 appendFileSync(process.env.FAKE_CALLS, JSON.stringify(args) + "\n");
 if (args[0] === "--host") args.splice(0, 2);
@@ -18,6 +18,16 @@ if (args[0] === "context") {
     process.exit(1);
   }
   if (scenario === "malformed") { console.log("not JSON"); process.exit(0); }
+  if (scenario.startsWith("v3-")) {
+    const report = JSON.parse(readFileSync(process.env.FAKE_REPORT));
+    report.ArtifactName = args.at(-1);
+    report.Metadata.ImageID = scenario === "v3-wrong-id" ? `sha256:${"b".repeat(64)}` : id;
+    if (scenario === "v3-unapproved") report.Results[0].Vulnerabilities.push({ ...report.Results[0].Vulnerabilities[0], VulnerabilityID: "CVE-2099-99999" });
+    if (scenario === "v3-no-purl") delete report.Results[0].Vulnerabilities[0].PkgIdentifier;
+    if (scenario === "v3-high") report.Results[0].Vulnerabilities[0].Severity = "HIGH";
+    console.log(JSON.stringify(report));
+    process.exit(0);
+  }
   if (scenario === "interrupt") {
     process.stdout.write('{"incomplete":');
     setTimeout(() => {}, 30_000);

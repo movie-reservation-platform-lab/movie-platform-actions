@@ -28,7 +28,15 @@ type VulnerabilityCounts = {
   critical: number;
 };
 
-try {
+if (process.env.EVIDENCE_VERSION === "v1alpha3") {
+  const { generateV3Evidence } = await import("./candidate-v3.mjs");
+  const { safeFailure } = await import("./runtime-files.mjs");
+  try { await generateV3Evidence(process.env); }
+  catch (error) { console.error(safeFailure(error)); process.exitCode = 1; }
+} else if (process.env.EVIDENCE_VERSION && process.env.EVIDENCE_VERSION !== "v1alpha2") {
+  console.error("Unsupported evidence version.");
+  process.exitCode = 1;
+} else try {
   const workspace = realpathSync(
     requireEnvironmentVariable("GITHUB_WORKSPACE"),
   );

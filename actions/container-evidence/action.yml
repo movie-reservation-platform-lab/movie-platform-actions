@@ -1,6 +1,10 @@
 name: Attest and record container evidence
-description: Produce a signed, subject-bound v1alpha2 container evidence package without AWS authority.
+description: Produce signed, subject-bound container evidence; v1alpha2 remains the strict default.
 inputs:
+  evidence-version:
+    description: Reviewed evidence contract, v1alpha2 (strict default) or v1alpha3 (latest approved policy).
+    required: false
+    default: v1alpha2
   component:
     description: Reviewed runnable container component.
     required: true
@@ -19,6 +23,7 @@ runs:
         COMPONENT: ${{ inputs.component }}
         CANDIDATE_DIGEST: ${{ inputs.digest }}
         ACTION_PATH: ${{ github.action_path }}
+        EVIDENCE_VERSION: ${{ inputs.evidence-version }}
       run: node "$ACTION_PATH/lib/context.mjs"
     - id: provenance
       uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
@@ -38,6 +43,7 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
       run: node "$ACTION_PATH/lib/verify.mjs"
     - name: CycloneDX SBOM of exact published digest
+      if: ${{ steps.context.outputs.version == 'v1alpha2' }}
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: image
@@ -54,6 +60,7 @@ runs:
         version: v0.70.0
         cache: false
     - name: Complete vulnerability report of exact published digest
+      if: ${{ steps.context.outputs.version == 'v1alpha2' }}
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: image
@@ -69,12 +76,23 @@ runs:
         timeout: 5m
         skip-setup-trivy: true
         cache: false
+    - name: Complete isolated v3 scans of exact published digest
+      if: ${{ steps.context.outputs.version == 'v1alpha3' }}
+      shell: bash
+      env:
+        COMPONENT: ${{ inputs.component }}
+        CANDIDATE_DIGEST: ${{ inputs.digest }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: node "$ACTION_PATH/lib/scan-v3.mjs"
     - name: Enforce provisional CRITICAL gate
+      if: ${{ steps.context.outputs.version == 'v1alpha2' }}
       shell: bash
       env:
         REPORT_PATH: security-evidence/${{ inputs.component }}-vulnerabilities.json
         EXPECTED_IMAGE: ${{ steps.verify-provenance.outputs.image }}
         SUBJECT_KIND: immutable-ghcr
+        EVIDENCE_VERSION: v1alpha2
         EVIDENCE_ARTIFACT_NAME: ${{ steps.context.outputs.artifact }}
         ACTION_PATH: ${{ github.action_path }}
       run: node "$ACTION_PATH/lib/evaluate-vulnerabilities.mjs"
@@ -87,13 +105,15 @@ runs:
         ATTESTATION_ID: ${{ steps.provenance.outputs.attestation-id }}
         ATTESTATION_URL: ${{ steps.provenance.outputs.attestation-url }}
         ACTION_PATH: ${{ github.action_path }}
+        EVIDENCE_VERSION: ${{ steps.context.outputs.version }}
+        GH_TOKEN: ${{ inputs.github-token }}
       run: node "$ACTION_PATH/lib/write-candidate-evidence.mjs"
     - name: Attest the exact four-file handoff
       uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
       with:
         github-token: ${{ inputs.github-token }}
         subject-path: |
-          ${{ github.workspace }}/security-evidence/component-candidate-evidence-v1alpha2.json
+          ${{ github.workspace }}/security-evidence/${{ steps.context.outputs.document }}
           ${{ github.workspace }}/security-evidence/${{ inputs.component }}-provenance.json
           ${{ github.workspace }}/security-evidence/${{ inputs.component }}.cdx.json
           ${{ github.workspace }}/security-evidence/${{ inputs.component }}-vulnerabilities.json
@@ -102,7 +122,7 @@ runs:
       with:
         name: ${{ steps.context.outputs.artifact }}
         path: |
-          ${{ github.workspace }}/security-evidence/component-candidate-evidence-v1alpha2.json
+          ${{ github.workspace }}/security-evidence/${{ steps.context.outputs.document }}
           ${{ github.workspace }}/security-evidence/${{ inputs.component }}-provenance.json
           ${{ github.workspace }}/security-evidence/${{ inputs.component }}.cdx.json
           ${{ github.workspace }}/security-evidence/${{ inputs.component }}-vulnerabilities.json
@@ -116,5 +136,6 @@ runs:
         path: |
           ${{ github.workspace }}/security-evidence/${{ inputs.component }}.cdx.json
           ${{ github.workspace }}/security-evidence/${{ inputs.component }}-vulnerabilities.json
+          ${{ github.workspace }}/security-evidence/vulnerability-policy-diagnostic.json
         if-no-files-found: warn
         retention-days: 14
