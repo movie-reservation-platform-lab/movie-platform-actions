@@ -32,6 +32,7 @@ export function scannerArguments(
     "--volume", `${socket}:/var/run/docker.sock:ro`,
     "--volume", `${cacheVolume}:/root/.cache/trivy`,
     scannerImage, "image", "--image-src", "docker", "--platform", "linux/amd64",
+    "--config", "/dev/null", "--ignorefile", "/dev/null",
     "--scanners", "vuln", "--vuln-type", "os,library", "--format", "json",
     "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL", "--ignore-unfixed=false",
     "--quiet", "--exit-code", "0", "--timeout", "5m", image,

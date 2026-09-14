@@ -16,94 +16,110 @@ const evidenceDocumentPath = "security-evidence/component-candidate-evidence-v1a
 const provenanceBundlePath = `security-evidence/${profile.provenance}`;
 const sbomPath = `security-evidence/${profile.sbom}`;
 const vulnerabilityReportPath = `security-evidence/${profile.vulnerabilities}`;
-try {
-    const workspace = realpathSync(requireEnvironmentVariable("GITHUB_WORKSPACE"));
-    const sourceRevision = requireEnvironmentVariable("GITHUB_SHA");
-    const runId = requireEnvironmentVariable("GITHUB_RUN_ID");
-    const runAttempt = parsePositiveInteger(requireEnvironmentVariable("GITHUB_RUN_ATTEMPT"), "GITHUB_RUN_ATTEMPT");
-    const candidateDigest = requireEnvironmentVariable("CANDIDATE_DIGEST");
-    const attestationId = requireEnvironmentVariable("ATTESTATION_ID");
-    const attestationUrl = requireEnvironmentVariable("ATTESTATION_URL");
-    requireExactEnvironmentVariable("GITHUB_REPOSITORY", sourceRepository);
-    requireExactEnvironmentVariable("GITHUB_REF", sourceRef);
-    requireExactEnvironmentVariable("GITHUB_SERVER_URL", githubServerUrl);
-    requireExactEnvironmentVariable("CANDIDATE_REPOSITORY", candidateRepository);
-    validatePattern("GITHUB_SHA", sourceRevision, /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
-    validatePattern("GITHUB_RUN_ID", runId, /^[1-9][0-9]*$/);
-    validatePattern("CANDIDATE_DIGEST", candidateDigest, /^sha256:[0-9a-f]{64}$/);
-    validatePattern("ATTESTATION_ID", attestationId, /^[1-9][0-9]*$/);
-    const expectedAttestationUrl = `${githubServerUrl}/${sourceRepository}/attestations/${attestationId}`;
-    if (attestationUrl !== expectedAttestationUrl) {
-        throw new Error(`ATTESTATION_URL must be ${expectedAttestationUrl}.`);
+if (process.env.EVIDENCE_VERSION === "v1alpha3") {
+    const { generateV3Evidence } = await import("./candidate-v3.mjs");
+    const { safeFailure } = await import("./runtime-files.mjs");
+    try {
+        await generateV3Evidence(process.env);
     }
-    const artifactName = profile.artifact;
-    const immutableCandidate = `${candidateRepository}@${candidateDigest}`;
-    const vulnerabilityCounts = readVulnerabilityCounts(workspace, immutableCandidate);
-    if (vulnerabilityCounts.critical > 0)
-        throw new Error("CRITICAL findings block canonical evidence");
-    const evidence = {
-        apiVersion: "ci.movie-platform.dev/v1alpha2",
-        kind: "ComponentCandidateEvidence",
-        component: profile.component,
-        source: {
-            repository: sourceRepository,
-            revision: sourceRevision,
-            ref: sourceRef,
-        },
-        workflow: {
-            path: ".github/workflows/ci.yml",
-            job: profile.jobName,
-            runId,
-            runAttempt,
-            url: `${githubServerUrl}/${sourceRepository}/actions/runs/${runId}/attempts/${runAttempt}`,
-        },
-        candidate: {
-            repository: candidateRepository,
-            digest: candidateDigest,
-            platform: {
-                os: "linux",
-                architecture: "amd64",
-            },
-        },
-        provenance: {
-            subjectName: candidateRepository,
-            subjectDigest: candidateDigest,
-            predicateType: "https://slsa.dev/provenance/v1",
-            attestationId,
-            attestationUrl,
-            bundle: {
-                path: provenanceBundlePath,
-                sha256: hashWorkspaceFile(workspace, provenanceBundlePath),
-                format: "sigstore-bundle-json",
-            },
-        },
-        securityEvidence: {
-            artifactName,
-            sbom: {
-                path: sbomPath,
-                sha256: hashWorkspaceFile(workspace, sbomPath),
-                format: "cyclonedx-json",
-            },
-            vulnerabilities: {
-                path: vulnerabilityReportPath,
-                sha256: hashWorkspaceFile(workspace, vulnerabilityReportPath),
-                format: "trivy-json",
-                subject: immutableCandidate,
-                counts: vulnerabilityCounts,
-            },
-        },
-        generatedAt: new Date().toISOString(),
-    };
-    writeFileSync(join(workspace, evidenceDocumentPath), `${JSON.stringify(evidence, null, 2)}\n`, {
-        encoding: "utf8",
-        flag: "wx",
-    });
+    catch (error) {
+        console.error(safeFailure(error));
+        process.exitCode = 1;
+    }
 }
-catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Unable to emit candidate evidence: ${message}`);
+else if (process.env.EVIDENCE_VERSION && process.env.EVIDENCE_VERSION !== "v1alpha2") {
+    console.error("Unsupported evidence version.");
     process.exitCode = 1;
 }
+else
+    try {
+        const workspace = realpathSync(requireEnvironmentVariable("GITHUB_WORKSPACE"));
+        const sourceRevision = requireEnvironmentVariable("GITHUB_SHA");
+        const runId = requireEnvironmentVariable("GITHUB_RUN_ID");
+        const runAttempt = parsePositiveInteger(requireEnvironmentVariable("GITHUB_RUN_ATTEMPT"), "GITHUB_RUN_ATTEMPT");
+        const candidateDigest = requireEnvironmentVariable("CANDIDATE_DIGEST");
+        const attestationId = requireEnvironmentVariable("ATTESTATION_ID");
+        const attestationUrl = requireEnvironmentVariable("ATTESTATION_URL");
+        requireExactEnvironmentVariable("GITHUB_REPOSITORY", sourceRepository);
+        requireExactEnvironmentVariable("GITHUB_REF", sourceRef);
+        requireExactEnvironmentVariable("GITHUB_SERVER_URL", githubServerUrl);
+        requireExactEnvironmentVariable("CANDIDATE_REPOSITORY", candidateRepository);
+        validatePattern("GITHUB_SHA", sourceRevision, /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
+        validatePattern("GITHUB_RUN_ID", runId, /^[1-9][0-9]*$/);
+        validatePattern("CANDIDATE_DIGEST", candidateDigest, /^sha256:[0-9a-f]{64}$/);
+        validatePattern("ATTESTATION_ID", attestationId, /^[1-9][0-9]*$/);
+        const expectedAttestationUrl = `${githubServerUrl}/${sourceRepository}/attestations/${attestationId}`;
+        if (attestationUrl !== expectedAttestationUrl) {
+            throw new Error(`ATTESTATION_URL must be ${expectedAttestationUrl}.`);
+        }
+        const artifactName = profile.artifact;
+        const immutableCandidate = `${candidateRepository}@${candidateDigest}`;
+        const vulnerabilityCounts = readVulnerabilityCounts(workspace, immutableCandidate);
+        if (vulnerabilityCounts.critical > 0)
+            throw new Error("CRITICAL findings block canonical evidence");
+        const evidence = {
+            apiVersion: "ci.movie-platform.dev/v1alpha2",
+            kind: "ComponentCandidateEvidence",
+            component: profile.component,
+            source: {
+                repository: sourceRepository,
+                revision: sourceRevision,
+                ref: sourceRef,
+            },
+            workflow: {
+                path: ".github/workflows/ci.yml",
+                job: profile.jobName,
+                runId,
+                runAttempt,
+                url: `${githubServerUrl}/${sourceRepository}/actions/runs/${runId}/attempts/${runAttempt}`,
+            },
+            candidate: {
+                repository: candidateRepository,
+                digest: candidateDigest,
+                platform: {
+                    os: "linux",
+                    architecture: "amd64",
+                },
+            },
+            provenance: {
+                subjectName: candidateRepository,
+                subjectDigest: candidateDigest,
+                predicateType: "https://slsa.dev/provenance/v1",
+                attestationId,
+                attestationUrl,
+                bundle: {
+                    path: provenanceBundlePath,
+                    sha256: hashWorkspaceFile(workspace, provenanceBundlePath),
+                    format: "sigstore-bundle-json",
+                },
+            },
+            securityEvidence: {
+                artifactName,
+                sbom: {
+                    path: sbomPath,
+                    sha256: hashWorkspaceFile(workspace, sbomPath),
+                    format: "cyclonedx-json",
+                },
+                vulnerabilities: {
+                    path: vulnerabilityReportPath,
+                    sha256: hashWorkspaceFile(workspace, vulnerabilityReportPath),
+                    format: "trivy-json",
+                    subject: immutableCandidate,
+                    counts: vulnerabilityCounts,
+                },
+            },
+            generatedAt: new Date().toISOString(),
+        };
+        writeFileSync(join(workspace, evidenceDocumentPath), `${JSON.stringify(evidence, null, 2)}\n`, {
+            encoding: "utf8",
+            flag: "wx",
+        });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Unable to emit candidate evidence: ${message}`);
+        process.exitCode = 1;
+    }
 /** Reads a required runner setting, rejecting missing or empty values. */
 function requireEnvironmentVariable(name) {
     const value = process.env[name];

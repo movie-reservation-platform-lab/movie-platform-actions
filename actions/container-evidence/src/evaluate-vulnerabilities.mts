@@ -45,7 +45,13 @@ type SummaryValues = {
   subjectKind: SubjectKind;
 };
 
-try {
+if (process.env.EVIDENCE_VERSION === "v1alpha3") {
+  const { runLocalEvaluation } = await import("./evaluate-v3.mjs");
+  await runLocalEvaluation(process.env);
+} else if (process.env.EVIDENCE_VERSION && process.env.EVIDENCE_VERSION !== "v1alpha2") {
+  reportWorkflowError("Unsupported evidence version.");
+  process.exitCode = 2;
+} else try {
   const reportPathInput = requireEnvironmentVariable("REPORT_PATH");
   const expectedImage = requireEnvironmentVariable("EXPECTED_IMAGE");
   const subjectKind = parseSubjectKind(

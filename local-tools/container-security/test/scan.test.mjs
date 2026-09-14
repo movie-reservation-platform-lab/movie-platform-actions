@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,4 +137,60 @@ test("scanner settings match hosted policy and never request remote target looku
   assert.equal(args[args.indexOf("--format") + 1], "json");
   assert.equal(args[args.indexOf("--image-src") + 1], "docker");
   assert.ok(args.every(arg => !arg.startsWith("--skip-")));
+});
+
+for (const [scenario, policy, status] of [
+  ["v3-approved", "approved", 0], ["v3-unapproved", "approved", 1],
+  ["v3-no-purl", "approved", 1], ["v3-approved", "empty", 1],
+  ["v3-high", "empty", 0], ["v3-approved", "failed", 2], ["v3-wrong-id", "approved", 2],
+]) {
+  test(`${scenario}/${policy}: real v3 CLI retains complete decisions with correct exit and no authority`, async t => {
+    const f = await fixture(t, scenario);
+    const baseline = JSON.parse(readFileSync(new URL("../../../test/fixtures/vulnerability-policy/baseline.json", import.meta.url)));
+    const reportPath = join(f.directory, "synthetic-report.json");
+    writeFileSync(reportPath, JSON.stringify(baseline.report));
+    Object.assign(f.env, { FAKE_REPORT: reportPath, FAKE_POLICY_MODE: policy, GH_TOKEN: "TOKEN_SENTINEL",
+      NODE_OPTIONS: `--import=${fileURLToPath(new URL("../../../test/support/mock-policy-https.mjs", import.meta.url))}`,
+      TRIVY_IGNORE_UNFIXED: "true", TRIVY_IGNOREFILE: "/evil/ignore" });
+    f.args.push("--evidence-version", "v1alpha3", "--component", "recommendation-mcp");
+    const result = f.run();
+    assert.equal(result.status, status, result.stderr);
+    assert.doesNotMatch(result.stdout + result.stderr, /TOKEN_SENTINEL|PRIVATE_SENTINEL/);
+    const run = f.reports()[0];
+    assert.ok(!readdirSync(run).some(name => name.includes("candidate-evidence")));
+    if (status === 2) {
+      assert.ok(!existsSync(join(run, "summary.txt")));
+      assert.ok(!existsSync(join(run, "vulnerability-policy.json")));
+      assert.ok(existsSync(join(run, "report.partial.json")));
+    } else {
+      const report = JSON.parse(readFileSync(join(run, "vulnerabilities.json")));
+      const diagnostic = JSON.parse(readFileSync(join(run, "vulnerability-policy.json")));
+      assert.equal(diagnostic.diagnosticOnly, true);
+      assert.equal(diagnostic.evaluation.findings.length, report.Results[0].Vulnerabilities.length);
+      assert.equal(diagnostic.evaluation.blockingCritical === 0, status === 0);
+      assert.match(result.stdout, /not PR authority/);
+      if (scenario === "v3-approved" && policy === "approved") {
+        assert.equal(diagnostic.evaluation.result, "passed-with-exemptions");
+        assert.equal(diagnostic.evaluation.counts.critical, 1);
+        assert.match(result.stdout, /passed-with-exemptions/);
+      }
+    }
+    const args = f.calls().find(args => args.includes("run"));
+    assert.ok(args && !args.includes("--env"), "host environment and token are never forwarded into local Trivy");
+    assert.equal(args[args.indexOf("--ignorefile") + 1], "/dev/null");
+  });
+}
+
+test("v3 selection rejects missing credentials/component, unknown versions and caller policy paths before scanning", async t => {
+  const f = await fixture(t);
+  for (const extra of [
+    ["--evidence-version", "v1alpha3"],
+    ["--evidence-version", "v1alpha3", "--component", "recommendation-mcp"],
+    ["--evidence-version", "v1alpha99"],
+    ["--policy-file", "/tmp/unreviewed.json"],
+  ]) {
+    const result = spawnSync(process.execPath, [...f.args, ...extra], { env: { ...f.env, GH_TOKEN: "" }, encoding: "utf8" });
+    assert.equal(result.status, 2);
+  }
+  assert.equal(f.calls().length, 0);
 });
