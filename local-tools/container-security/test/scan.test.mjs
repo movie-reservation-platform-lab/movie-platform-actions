@@ -155,20 +155,20 @@ test("scanner settings match hosted policy and never request remote target looku
   assert.ok(args.every(arg => !arg.startsWith("--skip-")));
 });
 
-for (const [scenario, policy, status] of [
+for (const component of ["recommendation-mcp", "reservation-service"]) for (const [scenario, policy, status] of [
   ["v3-approved", "approved", 0], ["v3-unapproved", "approved", 1],
   ["v3-no-purl", "approved", 1], ["v3-approved", "empty", 1],
   ["v3-high", "empty", 0], ["v3-approved", "failed", 2], ["v3-wrong-id", "approved", 2],
 ]) {
-  test(`${scenario}/${policy}: real v3 CLI retains complete decisions with correct exit and no authority`, async t => {
+  test(`${component}/${scenario}/${policy}: real v3 CLI retains complete decisions with correct exit and no authority`, async t => {
     const f = await fixture(t, scenario);
     const baseline = JSON.parse(readFileSync(new URL("../../../test/fixtures/vulnerability-policy/baseline.json", import.meta.url)));
     const reportPath = join(f.directory, "synthetic-report.json");
     writeFileSync(reportPath, JSON.stringify(baseline.report));
-    Object.assign(f.env, { FAKE_REPORT: reportPath, FAKE_POLICY_MODE: policy, GH_TOKEN: "TOKEN_SENTINEL",
+    Object.assign(f.env, { FAKE_REPORT: reportPath, FAKE_POLICY_MODE: policy, FAKE_POLICY_COMPONENT: component, GH_TOKEN: "TOKEN_SENTINEL",
       NODE_OPTIONS: `--import=${fileURLToPath(new URL("../../../test/support/mock-policy-https.mjs", import.meta.url))}`,
       TRIVY_IGNORE_UNFIXED: "true", TRIVY_IGNOREFILE: "/evil/ignore" });
-    f.args.push("--evidence-version", "v1alpha3", "--component", "recommendation-mcp");
+    f.args.push("--evidence-version", "v1alpha3", "--component", component);
     const result = f.run();
     assert.equal(result.status, status, result.stderr);
     assert.doesNotMatch(result.stdout + result.stderr, /TOKEN_SENTINEL|PRIVATE_SENTINEL/);
