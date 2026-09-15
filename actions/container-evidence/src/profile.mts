@@ -16,6 +16,7 @@ export type ContainerProfile = Readonly<{
   jobName: (typeof jobs)[Component][1];
   image: string;
   workflow: ".github/workflows/ci.yml";
+  /** Legacy v1alpha2 filename; context and the v3 writer select versioned output. */
   document: "component-candidate-evidence-v1alpha2.json";
   provenance: string;
   sbom: string;
