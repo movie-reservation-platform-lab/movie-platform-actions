@@ -1,5 +1,6 @@
 /** Closed runnable-image profiles. Static web OCI bundles are deliberately absent. */
 const jobs = {
+  "reservation-service": ["publish-candidate", "publish-candidate"],
   "reservation-agent": ["publish-image", "publish immutable GHCR image"],
   "recommendation-service": ["publish-image", "publish immutable GHCR image"],
   "reservation-mcp": ["publish-image", "publish immutable GHCR image"],

@@ -12,7 +12,15 @@
       "$ref": "https://schemas.movie-platform.dev/ci/component-candidate-evidence-v1alpha2.schema.json#/properties/kind"
     },
     "component": {
-      "$ref": "https://schemas.movie-platform.dev/ci/component-candidate-evidence-v1alpha2.schema.json#/properties/component"
+      "anyOf": [
+        {
+          "$ref": "https://schemas.movie-platform.dev/ci/component-candidate-evidence-v1alpha2.schema.json#/properties/component"
+        },
+        {
+          "type": "string",
+          "const": "reservation-service"
+        }
+      ]
     },
     "source": {
       "$ref": "https://schemas.movie-platform.dev/ci/component-candidate-evidence-v1alpha2.schema.json#/properties/source"
@@ -113,6 +121,72 @@
     },
     {
       "$ref": "https://schemas.movie-platform.dev/ci/component-candidate-evidence-v1alpha2.schema.json#/allOf/4"
+    },
+    {
+      "if": {
+        "properties": {
+          "component": {
+            "const": "reservation-service"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "properties": {
+              "repository": {
+                "const": "movie-reservation-platform-lab/movie-reservation-service"
+              }
+            }
+          },
+          "candidate": {
+            "properties": {
+              "repository": {
+                "const": "ghcr.io/movie-reservation-platform-lab/movie-reservation-service"
+              }
+            }
+          },
+          "workflow": {
+            "properties": {
+              "job": {
+                "const": "publish-candidate"
+              }
+            }
+          },
+          "provenance": {
+            "properties": {
+              "subjectName": {
+                "const": "ghcr.io/movie-reservation-platform-lab/movie-reservation-service"
+              },
+              "bundle": {
+                "properties": {
+                  "path": {
+                    "const": "security-evidence/reservation-service-provenance.json"
+                  }
+                }
+              }
+            }
+          },
+          "securityEvidence": {
+            "properties": {
+              "sbom": {
+                "properties": {
+                  "path": {
+                    "const": "security-evidence/reservation-service.cdx.json"
+                  }
+                }
+              },
+              "vulnerabilities": {
+                "properties": {
+                  "path": {
+                    "const": "security-evidence/reservation-service-vulnerabilities.json"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "$defs": {

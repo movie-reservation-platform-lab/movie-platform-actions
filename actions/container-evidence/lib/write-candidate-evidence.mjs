@@ -21,6 +21,10 @@ catch {
     process.exit(1);
 }
 const sourceRepository = profile.repository;
+if (profile.component === "reservation-service" && process.env.EVIDENCE_VERSION !== "v1alpha3") {
+    console.error("Reservation-service requires explicit v1alpha3 evidence.");
+    process.exit(1);
+}
 const candidateRepository = `ghcr.io/${sourceRepository}`;
 const sourceRef = "refs/heads/main";
 const githubServerUrl = "https://github.com";

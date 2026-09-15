@@ -8,14 +8,14 @@ export const rootSha = "2".repeat(40);
 export const policySha = "3".repeat(40);
 export const componentSha = "4".repeat(40);
 
-export function policyFixture(records = baseline.records) {
+export function policyFixture(records = baseline.records, component = "recommendation-mcp") {
   const responses = new Map();
   const calls = [];
   const tree = (sha, entries) => ({ sha, truncated: false, tree: entries });
   responses.set(prefix + "ref/heads/main", { ref: "refs/heads/main", object: { type: "commit", sha: revision } });
   responses.set(prefix + `commits/${revision}`, { sha: revision, tree: { sha: rootSha } });
   responses.set(prefix + `trees/${rootSha}`, tree(rootSha, [{ path: "security-exemptions", type: "tree", mode: "040000", sha: policySha }]));
-  responses.set(prefix + `trees/${policySha}`, tree(policySha, [{ path: "recommendation-mcp", type: "tree", mode: "040000", sha: componentSha }]));
+  responses.set(prefix + `trees/${policySha}`, tree(policySha, [{ path: component, type: "tree", mode: "040000", sha: componentSha }]));
   const entries = records.map(record => {
     const bytes = Buffer.from(JSON.stringify(record));
     const sha = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
