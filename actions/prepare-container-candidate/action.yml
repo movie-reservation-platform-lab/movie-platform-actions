@@ -1,6 +1,9 @@
 name: Prepare container candidate
 description: Validate canonical publication and derive attempt-unique discovery metadata.
 inputs:
+  github-token:
+    description: Caller GitHub token with contents read access to the canonical repository; never retained.
+    required: true
   component:
     description: Reviewed runnable container component (reservation-service pilot is separate).
     required: true
@@ -17,6 +20,7 @@ runs:
     - id: prepare
       shell: bash
       env:
+        GH_TOKEN: ${{ inputs.github-token }}
         COMPONENT: ${{ inputs.component }}
         ACTION_PATH: ${{ github.action_path }}
       run: node "$ACTION_PATH/../container-evidence/lib/prepare.mjs"

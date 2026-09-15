@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.movie-platform.dev/ci/component-candidate-evidence-v1alpha3.schema.json",
   "title": "ComponentCandidateEvidence v1alpha3",
-  "description": "Foundation only; not emitted yet. Four-file evidence with original vulnerability counts and signed governed decisions. Referenced v1alpha2 constraints remain immutable; semantic recomputation and trusted policy-source validation are mandatory.",
+  "description": "Emitted with explicit v1alpha3 selection. Four-file evidence with original vulnerability counts and signed governed decisions. Referenced v1alpha2 constraints remain immutable; semantic recomputation and trusted policy-source validation are mandatory.",
   "type": "object",
   "properties": {
     "apiVersion": {

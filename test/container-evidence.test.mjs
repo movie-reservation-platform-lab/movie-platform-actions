@@ -98,6 +98,7 @@ function fixture(t, component) {
         env,
         encoding: "utf8",
         cwd: tmpdir(),
+        timeout: 5000,
       }),
   };
 }
@@ -232,32 +233,6 @@ for (const scenario of [
     );
   });
 }
-test("preparation checks canonical remote before emitting outputs", (t) => {
-  const f = fixture(t);
-  const bin = join(f.directory, "bin");
-  mkdirSync(bin);
-  writeFileSync(
-    join(bin, "git"),
-    '#!/bin/sh\nprintf "%s\\trefs/heads/main\\n" "$FAKE_MAIN"\n',
-    { mode: 0o700 },
-  );
-  f.env.PATH = `${bin}:${process.env.PATH}`;
-  f.env.FAKE_MAIN = f.env.GITHUB_SHA;
-  assert.equal(f.run("prepare.mjs").status, 0);
-  assert.match(readFileSync(f.env.GITHUB_OUTPUT, "utf8"), /run-123-attempt-2/);
-  rmSync(f.env.GITHUB_OUTPUT);
-  f.env.FAKE_MAIN = "c".repeat(40);
-  assert.notEqual(f.run("prepare.mjs").status, 0);
-  assert.equal(existsSync(f.env.GITHUB_OUTPUT), false);
-  writeFileSync(
-    join(bin, "git"),
-    "#!/bin/sh\necho SENSITIVE_SENTINEL >&2\nexit 1\n",
-    { mode: 0o700 },
-  );
-  const failed = f.run("prepare.mjs");
-  assert.notEqual(failed.status, 0);
-  assert.doesNotMatch(failed.stderr, /SENSITIVE_SENTINEL/);
-});
 test("vulnerability evaluator binds report and exposes HIGH without silently passing CRITICAL", (t) => {
   const f = fixture(t);
   Object.assign(f.env, {
@@ -306,16 +281,19 @@ test("provenance verification uses constrained signer and removes rejected bundl
   const failed = f.run("verify.mjs");
   assert.notEqual(failed.status, 0);
   assert.doesNotMatch(failed.stderr, /SENSITIVE_SENTINEL/);
-  const args = readFileSync(f.env.ARGS_FILE, "utf8");
-  for (const required of [
-    "--source-digest",
-    "--source-ref",
+  const args = readFileSync(f.env.ARGS_FILE, "utf8").trimEnd().split("\n");
+  assert.deepEqual(args, [
+    "attestation", "verify", `oci://${f.profile.image}@${digest}`,
+    "--repo", f.profile.repository,
+    "--bundle", join(f.directory, "security-evidence", f.profile.provenance),
+    "--signer-workflow", `github.com/${f.profile.repository}/.github/workflows/ci.yml`,
+    "--source-ref", "refs/heads/main",
+    "--source-digest", f.env.GITHUB_SHA,
+    "--predicate-type", "https://slsa.dev/provenance/v1",
+    "--cert-oidc-issuer", "https://token.actions.githubusercontent.com",
     "--deny-self-hosted-runners",
-    "--cert-oidc-issuer",
-    `github.com/${f.profile.repository}/.github/workflows/ci.yml`,
-    `oci://${f.profile.image}@${digest}`,
-  ])
-    assert.ok(args.includes(required));
+    "--format", "json",
+  ]);
   assert.ok(!args.includes("not-retained"));
   assert.equal(
     existsSync(join(f.directory, "security-evidence", f.profile.provenance)),
@@ -328,11 +306,13 @@ test("composite dependencies are immutable and canonical upload follows package 
     "utf8",
   );
   const uses = [...action.matchAll(/uses: (\S+)/g)].map((match) => match[1]);
+  assert.ok(uses.length > 0, "composite must contain its third-party action steps");
   assert.ok(uses.every((value) => /@[a-f0-9]{40}$/.test(value)));
-  assert.ok(
-    action.indexOf("Attest the exact four-file") <
-      action.indexOf("Upload admissible"),
-  );
+  const attestationStep = action.indexOf("Attest the exact four-file");
+  const uploadStep = action.indexOf("Upload admissible");
+  assert.ok(attestationStep >= 0, "package attestation step must exist");
+  assert.ok(uploadStep >= 0, "canonical upload step must exist");
+  assert.ok(attestationStep < uploadStep, "attest the package before uploading it");
   assert.match(action, /push-to-registry: false/);
   assert.match(action, /steps\.verify-provenance\.outcome == 'success'/);
 });

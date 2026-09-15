@@ -1,15 +1,25 @@
 /**
  * Writes the candidate evidence JSON with the image and build identity,
  * vulnerability counts, and hashes of the provenance bundle, SBOM, and scan report.
- * Rejects CRITICAL findings and refuses to overwrite an existing evidence document.
+ * Dispatches v1alpha2 and v1alpha3 evidence generation. v1alpha2 rejects every
+ * CRITICAL finding; v1alpha3 rejects unapproved CRITICAL findings. Both versions
+ * refuse to overwrite an existing evidence document.
  */
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, writeFileSync, lstatSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { publicationContext } from "./profile.mjs";
+import { readDocument, RuntimeError } from "./runtime-files.mjs";
 
-const profile = publicationContext(process.env);
+// Profile errors are author-controlled, but keep this entrypoint's diagnostics
+// independent of arbitrary exceptions and avoid printing an uncaught stack.
+let profile: ReturnType<typeof publicationContext>;
+try { profile = publicationContext(process.env); }
+catch {
+  console.error("Unable to emit candidate evidence: Invalid canonical publication context.");
+  process.exit(1);
+}
 const sourceRepository = profile.repository;
 const candidateRepository = `ghcr.io/${sourceRepository}`;
 const sourceRef = "refs/heads/main";
@@ -65,7 +75,7 @@ if (process.env.EVIDENCE_VERSION === "v1alpha3") {
 
   const expectedAttestationUrl = `${githubServerUrl}/${sourceRepository}/attestations/${attestationId}`;
   if (attestationUrl !== expectedAttestationUrl) {
-    throw new Error(`ATTESTATION_URL must be ${expectedAttestationUrl}.`);
+    throw new RuntimeError("ATTESTATION_URL must match the canonical attestation.");
   }
 
   const artifactName = profile.artifact;
@@ -75,7 +85,7 @@ if (process.env.EVIDENCE_VERSION === "v1alpha3") {
     immutableCandidate,
   );
   if (vulnerabilityCounts.critical > 0)
-    throw new Error("CRITICAL findings block canonical evidence");
+    throw new RuntimeError("CRITICAL findings block canonical evidence");
   const evidence = {
     apiVersion: "ci.movie-platform.dev/v1alpha2",
     kind: "ComponentCandidateEvidence",
@@ -139,7 +149,7 @@ if (process.env.EVIDENCE_VERSION === "v1alpha3") {
     },
   );
 } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = error instanceof RuntimeError ? error.message : "Evidence file operation failed.";
 
   console.error(`Unable to emit candidate evidence: ${message}`);
   process.exitCode = 1;
@@ -150,7 +160,7 @@ function requireEnvironmentVariable(name: string): string {
   const value = process.env[name];
 
   if (value === undefined || value.length === 0) {
-    throw new Error(`Required environment variable ${name} is missing.`);
+    throw new RuntimeError(`Required environment variable ${name} is missing.`);
   }
 
   return value;
@@ -161,27 +171,27 @@ function requireExactEnvironmentVariable(name: string, expected: string): void {
   const value = requireEnvironmentVariable(name);
 
   if (value !== expected) {
-    throw new Error(`${name} must be ${expected}.`);
+    throw new RuntimeError(`${name} must match the canonical publication identity.`);
   }
 }
 
 /** Checks an input's format, naming the invalid setting without echoing its value. */
 function validatePattern(name: string, value: string, pattern: RegExp): void {
   if (!pattern.test(value)) {
-    throw new Error(`${name} has an unsupported value.`);
+    throw new RuntimeError(`${name} has an unsupported value.`);
   }
 }
 
 /** Parses a positive decimal integer without leading zeros or loss of numeric precision. */
 function parsePositiveInteger(value: string, name: string): number {
   if (!/^[1-9][0-9]*$/.test(value)) {
-    throw new Error(`${name} must be a positive integer.`);
+    throw new RuntimeError(`${name} must be a positive integer.`);
   }
 
   const parsed = Number(value);
 
   if (!Number.isSafeInteger(parsed)) {
-    throw new Error(`${name} exceeds the supported integer range.`);
+    throw new RuntimeError(`${name} exceeds the supported integer range.`);
   }
 
   return parsed;
@@ -195,22 +205,24 @@ function readVulnerabilityCounts(
   workspace: string,
   expectedImage: string,
 ): VulnerabilityCounts {
-  const reportPath = resolveWorkspaceFile(workspace, vulnerabilityReportPath);
-  const report = JSON.parse(readFileSync(reportPath, "utf8")) as unknown;
+  const bytes = readDocument(workspace, vulnerabilityReportPath, 64 * 1024 * 1024, "Vulnerability report");
+  let report: unknown;
+  try { report = JSON.parse(bytes.toString("utf8")) as unknown; }
+  catch { throw new RuntimeError("Vulnerability report must be valid JSON."); }
 
   if (
     !isRecord(report) ||
     report.SchemaVersion !== 2 ||
     report.ArtifactType !== "container_image"
   ) {
-    throw new Error(
+    throw new RuntimeError(
       "Vulnerability report is not a supported Trivy container report.",
     );
   }
 
   if (report.ArtifactName !== expectedImage) {
-    throw new Error(
-      `Vulnerability report subject does not match ${expectedImage}.`,
+    throw new RuntimeError(
+      "Vulnerability report subject does not match the candidate image.",
     );
   }
 
@@ -228,12 +240,12 @@ function readVulnerabilityCounts(
   }
 
   if (!Array.isArray(results)) {
-    throw new Error("Vulnerability report Results must be an array.");
+    throw new RuntimeError("Vulnerability report Results must be an array.");
   }
 
   for (const [resultIndex, result] of results.entries()) {
     if (!isRecord(result)) {
-      throw new Error(
+      throw new RuntimeError(
         `Vulnerability report result ${resultIndex} must be an object.`,
       );
     }
@@ -244,7 +256,7 @@ function readVulnerabilityCounts(
     }
 
     if (!Array.isArray(vulnerabilities)) {
-      throw new Error(
+      throw new RuntimeError(
         `Vulnerabilities at result ${resultIndex} must be an array.`,
       );
     }
@@ -257,7 +269,7 @@ function readVulnerabilityCounts(
         !isRecord(vulnerability) ||
         typeof vulnerability.Severity !== "string"
       ) {
-        throw new Error(
+        throw new RuntimeError(
           `Vulnerability ${vulnerabilityIndex} at result ${resultIndex} has no valid Severity.`,
         );
       }
@@ -272,7 +284,7 @@ function readVulnerabilityCounts(
           counts[severity] += 1;
           break;
         default:
-          throw new Error(
+          throw new RuntimeError(
             `Vulnerability ${vulnerabilityIndex} at result ${resultIndex} has unsupported severity.`,
           );
       }
@@ -299,7 +311,7 @@ function resolveWorkspaceFile(workspace: string, relativePath: string): string {
     !lstatSync(requested).isFile() ||
     lstatSync(requested).size > 64 * 1024 * 1024
   ) {
-    throw new Error("Evidence must be a bounded regular file");
+    throw new RuntimeError("Evidence must be a bounded regular file");
   }
   const path = realpathSync(requested);
   const pathWithinWorkspace = relative(workspace, path);
@@ -311,8 +323,8 @@ function resolveWorkspaceFile(workspace: string, relativePath: string): string {
     ) ||
     isAbsolute(pathWithinWorkspace)
   ) {
-    throw new Error(
-      `Evidence path must stay inside GITHUB_WORKSPACE: ${relativePath}`,
+    throw new RuntimeError(
+      "Evidence path must stay inside GITHUB_WORKSPACE.",
     );
   }
 
