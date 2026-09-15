@@ -139,7 +139,7 @@ function removeScannerContainer(
     ["--host", endpoint, "rm", "--force", name],
     { env, stdio: "ignore", timeout: 10_000, killSignal: "SIGKILL" },
   );
-  if (cleanup.error) {
+  if (cleanup.error || cleanup.status !== 0) {
     console.error(
       `Container cleanup could not complete. When Docker is available, remove container ${name}.`,
     );

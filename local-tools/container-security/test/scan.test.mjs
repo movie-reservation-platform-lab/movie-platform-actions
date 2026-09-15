@@ -83,6 +83,22 @@ test("repeat scan retains old report and uses the same cache without stale-resul
   }
 });
 
+test("failed container removal reports recovery guidance without hiding the scan failure or exposing Docker diagnostics", async (t) => {
+  const f = await fixture(t, "cleanup-error");
+  const result = f.run();
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /Scanner failure/);
+  const scan = f.calls().find(args => args.includes("run"));
+  const containerName = scan[scan.indexOf("--name") + 1];
+  const cleanup = f.calls().find(args => args.includes("rm"));
+  assert.deepEqual(cleanup, ["--host", `unix://${f.socket}`, "rm", "--force", containerName]);
+  assert.ok(result.stderr.includes(
+    `Container cleanup could not complete. When Docker is available, remove container ${containerName}.`,
+  ));
+  assert.doesNotMatch(result.stdout + result.stderr, /PRIVATE_SENTINEL|CLEANUP_SENTINEL|Policy passed|Policy rejected/);
+  assert.deepEqual(readdirSync(f.reports()[0]), ["report.partial.json"]);
+});
+
 test("context precedence and socket selection agree for inspection and scanning", async (t) => {
   const f = await fixture(t);
   f.env.DOCKER_CONTEXT = "desktop-linux";

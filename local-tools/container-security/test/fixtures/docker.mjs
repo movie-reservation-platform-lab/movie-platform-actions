@@ -12,7 +12,7 @@ if (args[0] === "context") {
   if (scenario === "missing-image") process.exit(1);
   console.log(`${id} linux/${scenario === "wrong-platform" ? "arm64" : "amd64"}`);
 } else if (args[0] === "run") {
-  if (scenario === "scanner-error" || scenario === "database-error") {
+  if (scenario === "scanner-error" || scenario === "database-error" || scenario === "cleanup-error") {
     process.stdout.write('{"incomplete":');
     console.error(scenario === "database-error" ? "failed to download vulnerability DB: PRIVATE_SENTINEL" : "PRIVATE_SENTINEL");
     process.exit(1);
@@ -42,6 +42,9 @@ if (args[0] === "context") {
       }] }],
     }));
   }
+} else if (args[0] === "rm" && scenario === "cleanup-error") {
+  console.error("CLEANUP_SENTINEL");
+  process.exit(1);
 } else if (args[0] !== "rm") {
   console.error("Unexpected fake Docker command");
   process.exit(1);

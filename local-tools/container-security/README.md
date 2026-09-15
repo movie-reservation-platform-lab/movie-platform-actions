@@ -12,8 +12,12 @@ The helper scans an existing image and reuses the shared CRITICAL evaluator.
 
 Complete reports and a short summary go into a fresh directory under
 `.local-container-security/` in your current directory. Change that root with
-`--output-dir /path/to/reports`. Exit 0: no CRITICAL findings; 1: CRITICAL findings;
-2: the check could not complete. Complete reports survive policy rejection.
+`--output-dir /path/to/reports`. Exit 0: policy passed; 1: blocking CRITICAL
+findings; 2: the check could not complete. The default mode blocks every CRITICAL.
+With `--evidence-version v1alpha3 --component <component>`, valid central approvals
+can exempt exact CRITICAL findings; see the [runbook's v3
+invocation](../../docs/local-container-vulnerability-scanning.md#worked-example-recommendation-mcp)
+for token setup and report details. Complete reports survive policy rejection.
 
 Read the [runbook](../../docs/local-container-vulnerability-scanning.md) for the
 worked producer example, Docker socket trust, cache, failure handling, and cleanup.
