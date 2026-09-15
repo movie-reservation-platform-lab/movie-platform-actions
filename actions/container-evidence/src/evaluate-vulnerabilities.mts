@@ -3,8 +3,8 @@
  * then writes finding counts and a summary to GitHub Actions. Fails the step for
  * invalid reports or CRITICAL findings; HIGH findings are reported but do not fail it.
  */
-import { appendFileSync, readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { appendFileSync } from "node:fs";
+import { readDocument, RuntimeError } from "./runtime-files.mjs";
 
 const immutableGhcrImagePattern =
   /^ghcr\.io\/[a-z0-9_.-]+\/[a-z0-9_.-]+@sha256:[0-9a-f]{64}$/;
@@ -67,17 +67,16 @@ if (process.env.EVIDENCE_VERSION === "v1alpha3") {
   validateExpectedImage(expectedImage, subjectKind);
 
   if (!artifactNamePattern.test(evidenceArtifactName)) {
-    throw new Error(
-      `Evidence artifact name contains unsupported characters: ${evidenceArtifactName}`,
+    throw new RuntimeError(
+      "Evidence artifact name contains unsupported characters.",
     );
   }
 
-  const reportPath = resolveWorkspaceFile(reportPathInput, githubWorkspace);
-  const report = readTrivyReport(reportPath);
+  const report = readTrivyReport(githubWorkspace, reportPathInput);
 
   if (report.ArtifactName !== expectedImage) {
-    throw new Error(
-      `Trivy report artifact ${String(report.ArtifactName)} does not match expected image ${expectedImage}`,
+    throw new RuntimeError(
+      "Trivy report artifact does not match expected image.",
     );
   }
 
@@ -120,7 +119,7 @@ if (process.env.EVIDENCE_VERSION === "v1alpha3") {
     process.exitCode = 1;
   }
 } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = error instanceof RuntimeError ? error.message : "Report or workflow file operation failed.";
 
   reportWorkflowError(
     `Unable to evaluate container vulnerability evidence: ${message}`,
@@ -134,7 +133,7 @@ function parseSubjectKind(value: string): SubjectKind {
     return value;
   }
 
-  throw new Error(`Unsupported image subject kind: ${value}`);
+  throw new RuntimeError("Unsupported image subject kind.");
 }
 
 /** Requires a GHCR digest reference or a local image tag, depending on the image kind. */
@@ -146,14 +145,14 @@ function validateExpectedImage(
     subjectKind === "immutable-ghcr" &&
     !immutableGhcrImagePattern.test(expectedImage)
   ) {
-    throw new Error(
-      `Expected image is not an immutable GHCR reference: ${expectedImage}`,
+    throw new RuntimeError(
+      "Expected image is not an immutable GHCR reference.",
     );
   }
 
   if (subjectKind === "local" && !localImagePattern.test(expectedImage)) {
-    throw new Error(
-      `Expected image is not a supported local container reference: ${expectedImage}`,
+    throw new RuntimeError(
+      "Expected image is not a supported local container reference.",
     );
   }
 }
@@ -163,61 +162,37 @@ function requireEnvironmentVariable(name: string): string {
   const value = process.env[name];
 
   if (value === undefined || value.length === 0) {
-    throw new Error(`Required environment variable ${name} is missing.`);
+    throw new RuntimeError(`Required environment variable ${name} is missing.`);
   }
 
   return value;
 }
 
-/** Resolves symlinks before checking that the report path stays within the workspace. */
-function resolveWorkspaceFile(
-  pathInput: string,
-  workspaceInput: string,
-): string {
-  const workspace = realpathSync(workspaceInput);
-  const file = realpathSync(resolve(workspace, pathInput));
-  const relativePath = relative(workspace, file);
-
-  if (
-    relativePath === ".." ||
-    relativePath.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)
-  ) {
-    throw new Error(
-      `Report path must stay inside the GitHub workspace: ${pathInput}`,
-    );
-  }
-
-  if (isAbsolute(relativePath)) {
-    throw new Error(
-      `Report path must stay inside the GitHub workspace: ${pathInput}`,
-    );
-  }
-
-  return file;
-}
-
 /** Reads a Trivy v2 container report; its vulnerability results are validated separately. */
-function readTrivyReport(path: string): TrivyReport {
-  const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+function readTrivyReport(workspace: string, path: string): TrivyReport {
+  const bytes = readDocument(workspace, path, 64 * 1024 * 1024, "Vulnerability report");
+  let parsed: unknown;
+  try { parsed = JSON.parse(bytes.toString("utf8")) as unknown; }
+  catch { throw new RuntimeError("Trivy report must be valid JSON."); }
 
   if (!isRecord(parsed)) {
-    throw new Error("Trivy report root must be a JSON object.");
+    throw new RuntimeError("Trivy report root must be a JSON object.");
   }
 
   if (parsed.SchemaVersion !== 2) {
-    throw new Error(
-      `Unsupported Trivy report schema version: ${String(parsed.SchemaVersion)}`,
+    throw new RuntimeError(
+      "Unsupported Trivy report schema version.",
     );
   }
 
   if (parsed.ArtifactType !== "container_image") {
-    throw new Error(
-      `Trivy report artifact type must be container_image, not ${String(parsed.ArtifactType)}`,
+    throw new RuntimeError(
+      "Trivy report artifact type must be container_image.",
     );
   }
 
   if (typeof parsed.ArtifactName !== "string") {
-    throw new Error("Trivy report ArtifactName must be a string.");
+    throw new RuntimeError("Trivy report ArtifactName must be a string.");
   }
 
   return { ArtifactName: parsed.ArtifactName, Results: parsed.Results };
@@ -230,7 +205,7 @@ function collectVulnerabilities(resultsValue: unknown): Vulnerability[] {
   }
 
   if (!Array.isArray(resultsValue)) {
-    throw new Error("Trivy report Results must be an array when present.");
+    throw new RuntimeError("Trivy report Results must be an array when present.");
   }
 
   return resultsValue.flatMap((result, resultIndex) =>
@@ -244,7 +219,7 @@ function collectResultVulnerabilities(
   resultIndex: number,
 ): Vulnerability[] {
   if (!isRecord(resultValue)) {
-    throw new Error(`Trivy result at index ${resultIndex} must be an object.`);
+    throw new RuntimeError(`Trivy result at index ${resultIndex} must be an object.`);
   }
 
   const vulnerabilities = resultValue.Vulnerabilities;
@@ -254,7 +229,7 @@ function collectResultVulnerabilities(
   }
 
   if (!Array.isArray(vulnerabilities)) {
-    throw new Error(
+    throw new RuntimeError(
       `Trivy vulnerabilities at result index ${resultIndex} must be an array.`,
     );
   }
@@ -274,7 +249,7 @@ function parseVulnerability(
   vulnerabilityIndex: number,
 ): Vulnerability {
   if (!isRecord(vulnerabilityValue)) {
-    throw new Error(
+    throw new RuntimeError(
       `Trivy vulnerability at result ${resultIndex}, index ${vulnerabilityIndex} must be an object.`,
     );
   }
@@ -306,8 +281,8 @@ function parseVulnerability(
   const fixedVersionValue = vulnerabilityValue.FixedVersion;
 
   if (!supportedSeverities.has(severity)) {
-    throw new Error(
-      `Trivy vulnerability at result ${resultIndex}, index ${vulnerabilityIndex} has unsupported severity ${severity}.`,
+    throw new RuntimeError(
+      `Trivy vulnerability at result ${resultIndex}, index ${vulnerabilityIndex} has unsupported severity.`,
     );
   }
 
@@ -315,7 +290,7 @@ function parseVulnerability(
     fixedVersionValue !== undefined &&
     typeof fixedVersionValue !== "string"
   ) {
-    throw new Error(
+    throw new RuntimeError(
       `Trivy vulnerability at result ${resultIndex}, index ${vulnerabilityIndex} has no valid FixedVersion.`,
     );
   }
@@ -343,7 +318,7 @@ function requireReportString(
   const value = vulnerability[field];
 
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(
+    throw new RuntimeError(
       `Trivy vulnerability at result ${resultIndex}, index ${vulnerabilityIndex} has no valid ${field}.`,
     );
   }
