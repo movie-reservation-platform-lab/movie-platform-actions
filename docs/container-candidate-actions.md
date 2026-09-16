@@ -4,7 +4,8 @@ Owned by the organization CI maintainers under
 [movie-platform-actions #1](https://github.com/movie-reservation-platform-lab/movie-platform-actions/issues/1),
 as a bounded extraction from
 [organization issue #12](https://github.com/movie-reservation-platform-lab/.github/issues/12).
-The known-good reservation-service pilot remains unchanged.
+Reservation-service enrollment is additive; its existing local v1 producer remains
+unchanged until a separate consumer migration pins this enrollment release.
 
 Use both actions by **the same reviewed full commit SHA**:
 
@@ -73,7 +74,23 @@ input together. Offline CI verifies code behavior; private-organization permissi
 are checked during migration. The [authentication audit](reviews/github-authentication-portability.md)
 records separate central-policy and scanner follow-ups.
 
-Supported components: reservation-agent, recommendation-service, reservation-mcp, recommendation-mcp and **reservation-web ECS image only**. Profiles bind repository, workflow and job; arbitrary artifacts/signer workflows are not inputs. Source/build labels remain caller-owned. The API job display name is recorded in workflow.job and checked separately from the YAML job ID at publication.
+Supported components: reservation-service (**explicit v1alpha3 only**), reservation-agent, recommendation-service, reservation-mcp, recommendation-mcp and **reservation-web ECS image only**. Profiles bind repository, workflow and job; arbitrary artifacts/signer workflows are not inputs. Source/build labels remain caller-owned. The API job display name is recorded in workflow.job and checked separately from the YAML job ID at publication.
+
+Reservation-service's job ID and display name are both `publish-candidate`.
+Its image is `ghcr.io/movie-reservation-platform-lab/movie-reservation-service`;
+its four-file artifact is `reservation-service-security-evidence-<runId>-attempt-<attempt>`.
+The existing v2 schema remains unchanged and does not accept this service. Both
+context setup and direct evidence emission reject service callers that omit
+`evidence-version: v1alpha3`. Prepare itself only establishes canonical publication
+identity; it neither emits evidence nor selects downstream admission policy.
+
+Before switching that producer, environments must support an explicit service v3
+route while retaining strict v1 verification. Do not activate a v3-only default
+ahead of the producer. See [the enrollment plan](plans/reservation-service-v3-enrollment.md)
+and [service #38](https://github.com/movie-reservation-platform-lab/movie-reservation-service/issues/38).
+An actions pin rollback to a release before enrollment cannot serve a shared
+reservation-service caller: restore its original local v1 producer or use a
+reviewed corrected enrollment release, and keep both environments readers.
 
 The output is `<component>-security-evidence-<runId>-attempt-<attempt>`, four exact files following [v1alpha2](../contracts/component-candidate-evidence-v1alpha2.schema.json) by default. Files are rooted directly in the downloaded artifact; document paths include the producer's security-evidence/ prefix. Image provenance and package provenance are both required. The digest must identify a single runnable manifest, not an OCI index or web static bundle.
 

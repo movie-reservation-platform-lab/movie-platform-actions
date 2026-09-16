@@ -12,7 +12,7 @@ import { profileFor } from "../actions/container-evidence/lib/profile.mjs";
 import { installGithubMock, mainReference, sourceSha } from "./support/prepare-http-fixture.mjs";
 
 const token = "TOKEN_SENTINEL";
-const components = ["reservation-agent", "recommendation-service", "reservation-mcp", "recommendation-mcp", "reservation-web"];
+const components = ["reservation-service", "reservation-agent", "recommendation-service", "reservation-mcp", "recommendation-mcp", "reservation-web"];
 
 function githubMock(t, scenario) {
   const requests = installGithubMock(t.mock, scenario);

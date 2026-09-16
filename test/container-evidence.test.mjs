@@ -180,8 +180,8 @@ for (const [key, value] of Object.entries({
       publicationContext({ ...environment(), [key]: value }),
     ));
 }
-test("legacy pilot and arbitrary digests cannot enter new profile", () => {
-  assert.throws(() => profileFor("reservation-service"));
+test("unregistered components and arbitrary digests cannot enter a profile", () => {
+  assert.throws(() => profileFor("unregistered-service"));
   assert.throws(() => requireDigest("latest"));
   assert.throws(() => profileFor("__proto__"));
   assert.notEqual(

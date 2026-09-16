@@ -56,7 +56,7 @@ export function componentName(untrustedComponentName: unknown): Component {
   const component = validateText(untrustedComponentName, 64);
   // TODO(component-onboarding): centralize these lists and profile mappings.
   // Tracked in https://github.com/movie-reservation-platform-lab/movie-platform-actions/issues/10.
-  assertPolicyCondition(["reservation-agent", "recommendation-service", "reservation-mcp", "recommendation-mcp", "reservation-web"].includes(component), "unsupported-component");
+  assertPolicyCondition(["reservation-service", "reservation-agent", "recommendation-service", "reservation-mcp", "recommendation-mcp", "reservation-web"].includes(component), "unsupported-component");
   return profileFor(component).component;
 }
 

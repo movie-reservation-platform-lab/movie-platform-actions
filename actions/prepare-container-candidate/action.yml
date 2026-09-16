@@ -5,7 +5,7 @@ inputs:
     description: Caller GitHub token with contents read access to the canonical repository; never retained.
     required: true
   component:
-    description: Reviewed runnable container component (reservation-service pilot is separate).
+    description: Reviewed runnable container component; reservation-service evidence requires explicit v1alpha3.
     required: true
 outputs:
   image_ref:

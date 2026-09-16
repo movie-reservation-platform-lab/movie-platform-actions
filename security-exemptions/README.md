@@ -7,8 +7,8 @@ policy; service adoption and actual exemption approval remain separate reviews.
 
 Records live at `<component>/<EX-ID>.json`, for one of:
 `recommendation-mcp`, `reservation-mcp`, `recommendation-service`,
-`reservation-agent`, or `reservation-web`. The legacy reservation-service pilot
-is not enrolled by this change. One record covers one component, CVE, exact
+`reservation-agent`, `reservation-web`, or `reservation-service`. Service v3
+tooling enrollment does not approve any exemption or switch its producer. One record covers one component, CVE, exact
 versioned PURL (including qualifiers), package name/version, and linux/amd64.
 No wildcards, cross-component inheritance, or source-commit locks.
 
@@ -18,7 +18,7 @@ and evidence schemas, action profiles, and admission verifier together, with
 consistency tests and a documented onboarding procedure. Preserve explicit
 allowlisting and pinned trust identities; do not accept arbitrary caller-supplied
 repositories or discover trusted components from exemption requests. The current
-five-component list remains unchanged until that follow-up is designed. Evaluate
+explicit component mappings are temporary until that follow-up is implemented. Evaluate
 service-owned metadata versus a central onboarding/meta repository as the source
 of truth, including how new entries are reviewed before becoming trusted.
 

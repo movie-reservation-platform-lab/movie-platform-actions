@@ -56,7 +56,7 @@ function parseOptions(args: string[]): ScanOptions {
   const version = options.get("--evidence-version") ?? "v1alpha2";
   const component = options.get("--component");
   if (version !== "v1alpha2" && version !== "v1alpha3") throw new Error(usage);
-  if (version === "v1alpha3" && !["reservation-agent", "recommendation-service", "reservation-mcp", "recommendation-mcp", "reservation-web"].includes(component ?? "")) throw new Error("V3 requires an allowlisted --component; see --help.");
+  if (version === "v1alpha3" && !["reservation-service", "reservation-agent", "recommendation-service", "reservation-mcp", "recommendation-mcp", "reservation-web"].includes(component ?? "")) throw new Error("V3 requires an allowlisted --component; see --help.");
   if (version === "v1alpha2" && component !== undefined) throw new Error("--component requires --evidence-version v1alpha3.");
   if (version === "v1alpha3" && !process.env.GH_TOKEN) throw new Error("V3 requires GH_TOKEN with read access to the central actions approvals. No policy fallback is allowed.");
   return { version, component, output: options.get("--output-dir") ?? ".local-container-security" };
